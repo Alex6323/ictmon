@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::env;
 use std::process;
 use std::thread;
@@ -50,29 +51,7 @@ fn main() {
         println!("Subscribed to channel: '{:?}'", CHANNEL_TX);
 
         loop {
-            let msg = subscriber.recv_msg(0).unwrap();
-            let str_msg = std::str::from_utf8(&msg).unwrap();
-            let parts: Vec<&str> = str_msg.split('|').collect();
-
-            println!("hash: {}", parts[1]);
-            //println!("signatureFragments: {}", parts[2]);
-            //println!("address: {}", parts[3]);
-            //println!("trytes: {}", parts[4]);
-            //println!("isBundleHead: {}", parts[5]);
-            //println!("timelockLowerBound: {}", parts[6]);
-            //println!("timelockUpperBound: {}", parts[7]);
-            //println!("attachmentTimestampLowerBound: {}", parts[8]);
-            //println!("attachmentTimestamp: {}", parts[9]);
-            //println!("attachmentTimestampUpperBound: {}", parts[10]);
-            //println!("branchHash: {}", parts[11]);
-            //println!("trunkHash:  {}", parts[12]);
-            //println!("essence: {}", parts[13]);
-            //println!("extraDataDigest: {}", parts[14]);
-            //println!("nonce: {}", parts[15]);
-            //println!("tag: {}", parts[16]);
-            //println!("value: {}", parts[17]);
-            //println!("decodedSignatureFragments: {}", parts[18]);
-            println!("");
+            subscriber.recv_msg(0).unwrap();
         }
     } else {
         process::exit(0);
