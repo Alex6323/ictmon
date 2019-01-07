@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-const ADDRESS: &str = "192.168.1.5"; //change this to localhost
+const ADDRESS: &str = "localhost"; //"192.168.1.5"; //change this to localhost
 const PORT: u16 = 5560;
 const CHANNEL_TX: &'static str = "tx";
 const MOVING_AVG_INTERVAL_MS: u64 = 60000;
@@ -60,7 +60,7 @@ fn main() {
     ));
 
     println!(
-        "Successfully established connection to zeromq IXI running at '{}:{}'",
+        "Listening for transactions from zeromq IXI publisher at '{}:{}'",
         args.address, args.port
     );
 
