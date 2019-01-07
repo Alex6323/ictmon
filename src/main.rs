@@ -7,11 +7,13 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-const ADDRESS: &str = "localhost"; //"192.168.1.5"; //change this to localhost
+const ADDRESS: &str = "localhost";
 const PORT: u16 = 5560;
 const CHANNEL_TX: &'static str = "tx";
 const MOVING_AVG_INTERVAL_MS: u64 = 60000;
 const VERSION: &'static str = "v0.1";
+const INITIAL_SLEEP_MS: u64 = 1000;
+const UPDATE_INTERVAL_MS: u64 = 1000;
 
 struct Arguments {
     program: String,
@@ -92,7 +94,7 @@ fn main() {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
 
-    thread::sleep(Duration::from_millis(1000));
+    thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
     loop {
         now = SystemTime::now()
@@ -110,7 +112,7 @@ fn main() {
                 queue.len() as f64 / (min(MOVING_AVG_INTERVAL_MS, uptime_ms) as f64 / 1000_f64),
             );
         }
-        thread::sleep(Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(UPDATE_INTERVAL_MS));
     }
 
     fn print_tps(tps: f64) {
