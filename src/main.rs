@@ -77,7 +77,7 @@ fn main() {
 
             uptime_ms = (now - init).as_secs() * 1000 + (now - init).subsec_millis() as u64;
             print!(
-                "\rTPS: {:.2}",
+                "\rTPS: {:.2} ",
                 events.len() as f64 / (min(MOVING_AVG_INTERVAL_MS, uptime_ms) as f64 / 1000_f64)
             );
             io::stdout().flush().unwrap();
