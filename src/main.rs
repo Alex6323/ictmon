@@ -22,7 +22,7 @@ struct Arguments {
 }
 
 impl Arguments {
-    pub fn new(args: Vec<String>) -> Result<Self, &'static str> {
+    pub fn new(args: Vec<String>) -> Result<Self, String> {
         if args.len() == 1 {
             Ok(Arguments {
                 address: ADDRESS.to_string(),
@@ -34,10 +34,14 @@ impl Arguments {
                 port: args[2].parse::<u16>().unwrap(),
             })
         } else {
-            Err("Wrong number of arguments provided. Usage: ixi_zmq_listener <IP> <Port>")
+            Err(format!(
+                "Wrong number of arguments provided. Usage: ./{} <IP> <ZMQ-Port>",
+                NAME
+            ))
         }
     }
 }
+
 fn main() {
     let args: Arguments;
     match Arguments::new(env::args().collect::<Vec<String>>()) {
@@ -60,9 +64,11 @@ fn main() {
     ));
 
     println!(
-        "Subscribed to Ict node running ZeroMQ IXI extension module at '{}:{}'",
+        "Info: Subscribed to Ict node running ZeroMQ IXI extension module at '{}:{}'.",
         args.address, args.port
     );
+
+    println!("\n");
 
     let subscription = CHANNEL_TX.to_string().into_bytes();
     subscriber.set_subscribe(&subscription).unwrap();
@@ -115,7 +121,7 @@ fn main() {
 
     fn print_tps(tps: f64) {
         print!(
-            "+--------------+\n|{:>10.2} tps|\n+--------------+\r\x1b[2A",
+            "\r\x1b[2A+--------------+\n|{:>10.2} tps|\n+--------------+",
             tps
         );
         io::stdout().flush().unwrap();
