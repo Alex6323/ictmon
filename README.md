@@ -14,7 +14,7 @@ For now 'ictmon' simply calculates the current tps (transactions per second) run
 * Then clone the repository onto your local system and change into its directory.
 
     ```bash
-    git clone https://github.com/alex6323/ictmon.git && cd ictmon
+    git clone https://github.com/Alex6323/ictmon.git && cd ictmon
     ```
 
 * Finally compile the source using Rust's package manager.
