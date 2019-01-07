@@ -7,16 +7,16 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
+const VERSION: &'static str = "v0.1.0";
+const NAME: &'static str = "ictmon";
 const ADDRESS: &str = "localhost";
 const PORT: u16 = 5560;
 const CHANNEL_TX: &'static str = "tx";
 const MOVING_AVG_INTERVAL_MS: u64 = 60000;
-const VERSION: &'static str = "v0.1";
 const INITIAL_SLEEP_MS: u64 = 1000;
 const UPDATE_INTERVAL_MS: u64 = 1000;
 
 struct Arguments {
-    program: String,
     address: String,
     port: u16,
 }
@@ -25,13 +25,11 @@ impl Arguments {
     pub fn new(args: Vec<String>) -> Result<Self, &'static str> {
         if args.len() == 1 {
             Ok(Arguments {
-                program: args[0].clone(),
                 address: ADDRESS.to_string(),
                 port: PORT,
             })
         } else if args.len() == 3 {
             Ok(Arguments {
-                program: args[0].clone(),
                 address: args[1].clone(),
                 port: args[2].parse::<u16>().unwrap(),
             })
@@ -41,8 +39,6 @@ impl Arguments {
     }
 }
 fn main() {
-    println!("Welcome to Ict Network Monitor {}", VERSION);
-
     let args: Arguments;
     match Arguments::new(env::args().collect::<Vec<String>>()) {
         Ok(a) => args = a,
@@ -51,6 +47,8 @@ fn main() {
             process::exit(0);
         }
     }
+
+    println!("Welcome to '{}' (Ict Network Monitor) {}", NAME, VERSION);
 
     let context = zmq::Context::new();
     let subscriber = context.socket(zmq::SUB).unwrap();
@@ -62,7 +60,7 @@ fn main() {
     ));
 
     println!(
-        "Listening for transactions from zeromq IXI publisher at '{}:{}'",
+        "Subscribed to Ict node running ZeroMQ IXI extension module at '{}:{}'",
         args.address, args.port
     );
 

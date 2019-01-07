@@ -1,5 +1,5 @@
 [package]
-name = "ixi_zmq_listener"
+name = "ictmon"
 version = "0.1.0"
 authors = ["Alex6323 <Al3k5@protonmail.com>"]
 edition = "2018"
