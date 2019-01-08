@@ -1,7 +1,6 @@
-extern crate tokio;
-
 use tokio::prelude::*;
 use tokio::timer::Interval;
+use lazy_static::lazy_static;
 
 use std::cmp::min;
 use std::collections::VecDeque;
@@ -14,12 +13,15 @@ use std::time::{Duration, Instant};
 
 const VERSION: &str = "v0.1.0";
 const NAME: &str = "ictmon";
-const ADDRESS: &str = "localhost";
 const PORT: u16 = 5560;
-const CHANNEL_TX: &str = "tx";
 const MOVING_AVG_INTERVAL_MS: u64 = 60000;
 const INITIAL_SLEEP_MS: u64 = 1000;
 const UPDATE_INTERVAL_MS: u64 = 1000;
+
+lazy_static! {
+    static ref ADDRESS: String = String::from("localhost");
+    static ref CHANNEL_TX: String = String::from("tx");
+}
 
 struct Arguments {
     address: String,
@@ -30,7 +32,7 @@ impl Arguments {
     pub fn new(args: Vec<String>) -> Result<Self, String> {
         match args.len() {
             1 => Ok(Arguments {
-                address: ADDRESS.to_string(),
+                address: ADDRESS.clone(),
                 port: PORT,
             }),
             3 => Ok(Arguments {
@@ -46,14 +48,13 @@ impl Arguments {
 }
 
 fn main() {
-    let args: Arguments;
-    match Arguments::new(env::args().collect::<Vec<String>>()) {
-        Ok(a) => args = a,
+    let args: Arguments = match Arguments::new(env::args().collect::<Vec<String>>()) {
+        Ok(a) => a,
         Err(s) => {
             println!("{}", s);
             process::exit(0);
         }
-    }
+    };
 
     println!("Welcome to '{}' (Ict Network Monitor) {}", NAME, VERSION);
 
@@ -75,7 +76,7 @@ fn main() {
 
     println!("\n");
 
-    let subscription = CHANNEL_TX.to_string().into_bytes();
+    let subscription = CHANNEL_TX.as_bytes();
     subscriber.set_subscribe(&subscription).unwrap();
 
     let arrival_timestamps: Arc<Mutex<VecDeque<Instant>>> = Arc::new(Mutex::new(VecDeque::new()));
