@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime};
 
 const VERSION: &'static str = "v0.1.0";
 const NAME: &'static str = "ictmon";
-const ADDRESS: &str = "localhost";
+const ADDRESS: &'static str = "localhost";
 const PORT: u16 = 5560;
 const CHANNEL_TX: &'static str = "tx";
 const MOVING_AVG_INTERVAL_MS: u64 = 60000;
