@@ -1,5 +1,7 @@
 use tokio::prelude::*;
 use tokio::timer::Interval;
+use tokio::timer::Delay;
+use tokio::runtime::Runtime;
 use lazy_static::lazy_static;
 
 use std::cmp::min;
@@ -82,7 +84,8 @@ fn main() {
     let arrival_timestamps: Arc<Mutex<VecDeque<Instant>>> = Arc::new(Mutex::new(VecDeque::new()));
     let arrival_timestamps_recv = Arc::clone(&arrival_timestamps);
 
-    thread::spawn(move || {
+    let poller = Delay::new(Instant::now())
+    .and_then(move |_| {
         let mut arrival_timestamp: Instant;
         loop {
             subscriber.recv_msg(0).unwrap();
@@ -91,7 +94,10 @@ fn main() {
             let mut queue = arrival_timestamps_recv.lock().unwrap();
             queue.push_back(arrival_timestamp);
         }
-    });
+        Ok(())
+    })
+    .map_err(|e| panic!("interval errored; err={:?}", e));
+
 
     let interval = Duration::from_millis(MOVING_AVG_INTERVAL_MS);
 
@@ -100,7 +106,7 @@ fn main() {
 
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
-    let task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
+    let interval_task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
         .for_each(move |instant| {
             let window_start = instant - interval;
             {
@@ -116,7 +122,11 @@ fn main() {
             Ok(())
         })
         .map_err(|e| panic!("interval errored; err={:?}", e));
-    tokio::run(task);
+    
+    let mut rt = Runtime::new().unwrap();
+    rt.spawn(poller);
+    rt.spawn(interval_task);
+    rt.shutdown_on_idle().wait().unwrap();
 }
 
 fn print_tps(tps: f64) {
