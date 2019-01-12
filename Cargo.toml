@@ -1,6 +1,6 @@
 [package]
 name = "ictmon"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Alex6323 <Al3k5@protonmail.com>"]
 edition = "2018"
 
@@ -8,3 +8,4 @@ edition = "2018"
 zmq = "0.9.0"
 tokio = "0.1.14"
 lazy_static = "1"
+clap = "2.32.0"
