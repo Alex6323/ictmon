@@ -1,5 +1,4 @@
-use lazy_static::lazy_static;
-
+#![allow(unreachable_code)]
 use tokio::{prelude::*, runtime::Runtime};
 
 use std::{
