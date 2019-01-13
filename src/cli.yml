@@ -1,0 +1,23 @@
+name: ictmon 
+version: "0.2.0-alpha"
+author: Alex6323
+about: An IOTA Ict network monitor.
+args:
+    - address:
+        help: Sets the address of the Ict node to listen to. [localhost]
+        required: false
+        takes_value: true
+    - port:
+        help: Sets the ZeroMQ port of the Ict node to listen to. [5560]
+        required: false
+        takes_value: true
+    - api:
+        long: api
+        required: false
+        help: Sets, whether ZeroMQ requests will be served.
+        takes_value: false
+    - no-stdout:
+        long: no-stdout
+        required: false
+        help: Deactivates continuously printing live metrics to stdout.
+        takes_value: false

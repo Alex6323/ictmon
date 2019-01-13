@@ -5,22 +5,24 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tokio;
-use tokio::runtime::Runtime;
-use tokio::{prelude::*, timer::Delay, timer::Interval};
+
+use tokio::{
+    prelude::*,
+    runtime::Runtime,
+    timer::{Delay, Interval},
+};
 
 use crate::Arguments;
+
 use lazy_static::lazy_static;
 
-use zmq::{Context, Socket};
-const ZMQ_PORT: u16 = 5560;
+use zmq::Context;
 
 const PRINT_UPDATE_INTERVAL_MS: u64 = 1000;
 const UPDATE_INTERVAL_MS: u64 = 1000;
+const MOVING_AVG_INTERVAL_MS: u64 = 60000;
 
 pub struct Metrics(pub f64);
-
-const MOVING_AVG_INTERVAL_MS: u64 = 60000;
 
 lazy_static! {
     static ref CHANNEL_TX: String = String::from("tx");
@@ -64,7 +66,7 @@ pub fn spawn_receiver_task(
             }
             Ok(())
         })
-        .map_err(|e| panic!("interval errored; err={:?}", e));
+        .map_err(|e| panic!("Error in receiver task: {:?}", e));
 
     runtime.spawn(receiver_task);
 }
@@ -96,7 +98,7 @@ pub fn spawn_tps_task(
             }
             Ok(())
         })
-        .map_err(|e| panic!("interval errored; err={:?}", e));
+        .map_err(|e| panic!("Error in tps task: {:?}", e));
 
     runtime.spawn(tps_task);
 }
@@ -113,7 +115,7 @@ pub fn spawn_stdout_task(runtime: &mut Runtime, metrics: Arc<Mutex<Metrics>>) {
             io::stdout().flush().unwrap();
             Ok(())
         })
-        .map_err(|e| panic!("Couldn't create stdout task: err={:?}", e));
+        .map_err(|e| panic!("Error in stdout task: {:?}", e));
 
     runtime.spawn(stdout_task);
 }
@@ -122,7 +124,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, metrics: Arc<Mutex<Metrics>>)
     let responder_context = Context::new();
     let responder = responder_context
         .socket(zmq::REP)
-        .expect("Failed to create respond from ZMQ context.");
+        .expect("Failed to create responder from ZMQ context.");
 
     let address = format!("tcp://*:{}", 5560);
     responder
@@ -133,6 +135,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, metrics: Arc<Mutex<Metrics>>)
         .and_then(move |_| {
             loop {
                 responder.recv_string(0).unwrap().unwrap();
+                //println!("Received request.");
                 {
                     responder
                         .send(&format!("{:.2}", metrics.lock().unwrap().0), 0)
@@ -141,7 +144,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, metrics: Arc<Mutex<Metrics>>)
             }
             Ok(())
         })
-        .map_err(|e| panic!("error in response task: {:?}", e));
+        .map_err(|e| panic!("Error in responder task: {:?}", e));
 
     runtime.spawn(responder_task);
 }

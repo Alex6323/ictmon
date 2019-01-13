@@ -4,20 +4,19 @@ use tokio::{prelude::*, runtime::Runtime};
 
 use std::{
     collections::VecDeque,
-    env, process,
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
 
+use clap::load_yaml;
+use clap::{App, ArgMatches};
+
 const VERSION: &str = "v0.2.0-alpha";
 const NAME: &str = "ictmon";
-const PORT: u16 = 5560;
+const PORT: &str = "5560";
 const INITIAL_SLEEP_MS: u64 = 1000;
-
-lazy_static! {
-    static ref ADDRESS: String = String::from("localhost");
-}
+const LOCALHOST: &str = "localhost";
 
 mod tasks;
 use crate::tasks::*;
@@ -30,35 +29,33 @@ pub struct Arguments {
 }
 
 impl Arguments {
-    pub fn new(args: Vec<String>) -> Result<Self, String> {
-        match args.len() {
-            1 => Ok(Arguments {
-                address: ADDRESS.clone(),
-                port: PORT,
-                run_stdout_task: true,
-                run_responder_task: true,
-            }),
-            3 => Ok(Arguments {
-                address: args[1].clone(),
-                port: args[2].parse::<u16>().unwrap(),
-                run_stdout_task: true,
-                run_responder_task: true,
-            }),
-            _ => Err(format!(
-                "Wrong number of arguments provided. Usage: ./{} <IP> <ZMQ-Port>",
-                NAME
-            )),
+    pub fn new(matches: ArgMatches) -> Self {
+        Arguments {
+            address: String::from(matches.value_of("address").unwrap_or(LOCALHOST)),
+            port: matches
+                .value_of("port")
+                .unwrap_or(PORT)
+                .parse::<u16>()
+                .unwrap(),
+            run_stdout_task: !matches.is_present("no-stdout"),
+            run_responder_task: matches.is_present("api"),
         }
     }
 }
 
 fn main() {
-    let args: Arguments = match Arguments::new(env::args().collect::<Vec<String>>()) {
-        Ok(a) => a,
-        Err(s) => {
-            println!("{}", s);
-            process::exit(0);
-        }
+    let yaml = load_yaml!("cli.yml");
+    let matches = App::from_yaml(yaml).get_matches();
+
+    let args = Arguments {
+        address: String::from(matches.value_of("address").unwrap_or("localhost")),
+        port: matches
+            .value_of("port")
+            .unwrap_or("5560")
+            .parse::<u16>()
+            .unwrap(),
+        run_stdout_task: !matches.is_present("no-stdout"),
+        run_responder_task: matches.is_present("api"),
     };
 
     println!(
