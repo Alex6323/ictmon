@@ -25,9 +25,9 @@ $ sudo chmod +x ./ictmon
     $ rustc --version
     ```
 
-* You will also need to have *pkg-config*, *libzmq3-dev* and *git* installed:
+* You will also need to have *libc*, *pkg-config*, *libzmq3-dev* and *git* installed:
     ```bash
-    $ sudo apt install pkg-config libzmq3-dev git
+    $ sudo apt install build-essential pkg-config libzmq3-dev git
     ```
 
 * Then clone the repository to your local machine and change into its directory:
