@@ -3,21 +3,36 @@ version: "0.2.0-alpha"
 author: Alex6323
 about: An IOTA Ict network monitor.
 args:
+    - name:
+        required: false
+        takes_value: true
+        help: Sets the name of the Ict node to listen to. [ict-0]
     - address:
+        required: false
+        takes_value: true
         help: Sets the address of the Ict node to listen to. [localhost]
-        required: false
-        takes_value: true
     - port:
-        help: Sets the ZeroMQ port of the Ict node to listen to. [5560]
         required: false
         takes_value: true
+        help: Sets the ZeroMQ port of the Ict node to listen to. [5560]
     - api:
         long: api
         required: false
-        help: Sets, whether ZeroMQ requests will be served.
         takes_value: false
+        help: Sets, whether ZeroMQ requests will be served.
     - no-stdout:
         long: no-stdout
         required: false
-        help: Deactivates continuously printing live metrics to stdout.
         takes_value: false
+        help: Deactivates continuously printing live metrics to stdout.
+    - nodelist:
+        long: nodelist
+        required: false
+        takes_value: true
+        help: Specifies a file containing nodes to monitor simultanously ('ict-0:192.168.1.99:5560').
+    - interval:
+        short: i
+        long: interval
+        required: false
+        takes_value: true
+        help: Sets the interval length for the moving average. [60]

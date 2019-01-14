@@ -20,6 +20,9 @@ const LOCALHOST: &str = "localhost";
 mod tasks;
 use crate::tasks::*;
 
+mod multi_node;
+use crate::multi_node::*;
+
 pub struct Arguments {
     address: String,
     port: u16,
@@ -45,6 +48,12 @@ impl Arguments {
 fn main() {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
+
+    if matches.is_present("node-list") {
+        let nodes = multi_node::Nodes::new_from_file("node_list.txt");
+        println!("{:?}", nodes);
+        std::process::exit(0);
+    }
 
     let args = Arguments {
         address: String::from(matches.value_of("address").unwrap_or("localhost")),
