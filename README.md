@@ -8,7 +8,7 @@ For now *ictmon* simply calculates the current tps (transactions per second) run
 
 ## Running the precompiled binary
 
-In case you are running an Ubuntu based operating system, I provide a 64bit binary under the *releases* tab. The binary might work on other linux distributions as well (I haven't tested it yet). Before executing the binary, please compare the checksums to make sure it has not been altered. You probably will have to make it executable after downloading it:
+In case you are running an Ubuntu based operating system, I provide a 64bit binary under the *releases* tab. The binary might work on other linux distributions as well (I haven't tested it yet). Before executing the binary, please compare one of the checksums to make sure it has not been altered. You probably will have to make it executable after downloading it:
 
 ```bash
 $ sudo chmod +x ./ictmon
