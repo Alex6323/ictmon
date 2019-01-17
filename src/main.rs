@@ -1,46 +1,48 @@
 #![allow(unreachable_code)]
 use tokio::{prelude::*, runtime::Runtime};
 
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-    thread,
-    time::{Duration, Instant},
-};
+use std::thread;
+use std::time::Duration;
 
 use clap::load_yaml;
 use clap::{App, ArgMatches};
 
-const VERSION: &str = "v0.2.0-alpha";
-const NAME: &str = "ictmon";
-const PORT: &str = "5560";
-const INITIAL_SLEEP_MS: u64 = 1000;
-const LOCALHOST: &str = "localhost";
-
+mod constants;
+mod nodes;
 mod tasks;
+
+use crate::constants::*;
+use crate::nodes::*;
 use crate::tasks::*;
 
-mod multi_node;
-use crate::multi_node::*;
-
 pub struct Arguments {
-    address: String,
-    port: u16,
+    nodes: Vec<IctNode>,
+    topic: String,
     run_stdout_task: bool,
     run_responder_task: bool,
 }
 
 impl Arguments {
-    pub fn new(matches: ArgMatches) -> Self {
+    pub fn from_matches(matches: ArgMatches) -> Self {
+        let nodes = if matches.is_present(NODE_LIST_ARG) {
+            create_nodes_from_file(ICT_LIST_FILE)
+        } else {
+            create_nodes_from_single(
+                matches.value_of(NAME_ARG).unwrap_or(DEFAULT_NAME),
+                matches.value_of(ADDRESS_ARG).unwrap_or(DEFAULT_HOST),
+                matches
+                    .value_of(PORT_ARG)
+                    .unwrap_or(DEFAULT_IXI_PORT)
+                    .parse::<u16>()
+                    .unwrap(),
+            )
+        };
+
         Arguments {
-            address: String::from(matches.value_of("address").unwrap_or(LOCALHOST)),
-            port: matches
-                .value_of("port")
-                .unwrap_or(PORT)
-                .parse::<u16>()
-                .unwrap(),
-            run_stdout_task: !matches.is_present("no-stdout"),
-            run_responder_task: matches.is_present("api"),
+            nodes,
+            topic: matches.value_of(TOPIC_ARG).unwrap_or(DEFAULT_TOPIC).into(),
+            run_stdout_task: !matches.is_present(NO_STDOUT_ARG),
+            run_responder_task: matches.is_present(API_ARG),
         }
     }
 }
@@ -48,45 +50,29 @@ impl Arguments {
 fn main() {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
-
-    if matches.is_present("node-list") {
-        let nodes = multi_node::Nodes::new_from_file("node_list.txt");
-        println!("{:?}", nodes);
-        std::process::exit(0);
-    }
-
-    let args = Arguments {
-        address: String::from(matches.value_of("address").unwrap_or("localhost")),
-        port: matches
-            .value_of("port")
-            .unwrap_or("5560")
-            .parse::<u16>()
-            .unwrap(),
-        run_stdout_task: !matches.is_present("no-stdout"),
-        run_responder_task: matches.is_present("api"),
-    };
+    let args = Arguments::from_matches(matches);
 
     println!(
         "*** Welcome to '{}' (Ict Network Monitor) {}. ***",
-        NAME, VERSION
+        APP_NAME, APP_VERSION
     );
-
-    let arrivals: Arc<Mutex<VecDeque<Instant>>> = Arc::new(Mutex::new(VecDeque::new()));
-    let metrics: Arc<Mutex<Metrics>> = Arc::new(Mutex::new(Metrics(0.0)));
 
     let mut runtime = Runtime::new().unwrap();
 
-    spawn_receiver_task(&mut runtime, arrivals.clone(), &args);
+    spawn_receiver_tasks(&mut runtime, &args);
+
+    // wait for the receiver tasks to be initialized properly before continuing
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
-    spawn_tps_task(&mut runtime, arrivals.clone(), metrics.clone());
+
+    spawn_tps_tasks(&mut runtime, &args);
 
     if args.run_stdout_task == true {
         println!("\n");
-        spawn_stdout_task(&mut runtime, metrics.clone());
+        spawn_stdout_task(&mut runtime, &args);
     }
 
     if args.run_responder_task == true {
-        spawn_responder_task(&mut runtime, metrics.clone());
+        spawn_responder_task(&mut runtime, &args);
     }
 
     runtime.shutdown_on_idle().wait().unwrap();

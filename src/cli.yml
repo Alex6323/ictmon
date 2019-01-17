@@ -3,36 +3,42 @@ version: "0.2.0-alpha"
 author: Alex6323
 about: An IOTA Ict network monitor.
 args:
-    - name:
-        required: false
-        takes_value: true
-        help: Sets the name of the Ict node to listen to. [ict-0]
     - address:
         required: false
         takes_value: true
-        help: Sets the address of the Ict node to listen to. [localhost]
+        help: Sets the address of the Ict node to listen to [default=localhost]
+        index: 1
+        requires: port
     - port:
         required: false
         takes_value: true
-        help: Sets the ZeroMQ port of the Ict node to listen to. [5560]
+        help: Sets the port of the Ict node to listen to [default=5561]
+        index: 2
+        requires: address
+    - name:
+        required: false
+        takes_value: true
+        requires: address
+        help: Sets the name of the Ict node to listen to [default=ict-0]
+        index: 3
+    - dir:
+        long: transaction-flow
+        required: false
+        takes_value: true
+        help: Specifies whether inbound, outbound, or all transactions of a node are considered [default=in]
+    - file:
+        long: node-list
+        required: false
+        takes_value: true
+        help: References a file containing node specifications to monitor mulitple nodes simultanously [line-format=name:ip:port]
+        conflicts_with: address
     - api:
         long: api
         required: false
         takes_value: false
-        help: Sets, whether ZeroMQ requests will be served.
+        help: Specifies whether this application will serve remote requests for metric updates 
     - no-stdout:
         long: no-stdout
         required: false
         takes_value: false
-        help: Deactivates continuously printing live metrics to stdout.
-    - nodelist:
-        long: nodelist
-        required: false
-        takes_value: true
-        help: Specifies a file containing nodes to monitor simultanously ('ict-0:192.168.1.99:5560').
-    - interval:
-        short: i
-        long: interval
-        required: false
-        takes_value: true
-        help: Sets the interval length for the moving average. [60]
+        help: Deactivates printing metrics to stdout
