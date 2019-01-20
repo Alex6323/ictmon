@@ -1,6 +1,5 @@
 use std::{
     cmp::min,
-    io::{self, Write},
     time::{Duration, Instant},
 };
 
@@ -11,6 +10,7 @@ use tokio::{
 };
 
 use crate::constants::*;
+use crate::display;
 use crate::Arguments;
 use crate::IctNode;
 
@@ -29,19 +29,16 @@ pub fn spawn_receiver_task(runtime: &mut Runtime, node: &IctNode, topic: String)
     let subscriber = context.socket(zmq::SUB).unwrap();
     let address = format!("tcp://{}:{}", node.address, node.port);
 
-    //TODO: get proper error message (maybe two lines are the same?)
+    //TODO: get proper error message (maybe two lines in the file are the same?)
     subscriber.connect(&address).unwrap_or_else(|_| {
         panic!(
             "Failed to connect to Ict node {} ({}:{}).",
             node.name, node.address, node.port
         )
     });
-
-    println!(
-        "Info: Listening to Ict node {} ({}:{}) ...",
-        node.name, node.address, node.port
-    );
-
+    /*
+    print_info(format!("Listening to Ict node {} ({}:{}) ...", node.name, node.address, node.port));
+    */
     let subscription = topic.as_bytes();
     subscriber.set_subscribe(&subscription).unwrap();
 
@@ -105,17 +102,7 @@ pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
 
     let stdout_task = Interval::new_interval(Duration::from_millis(STDOUT_UPDATE_INTERVAL_MS))
         .for_each(move |_| {
-            m.iter().for_each(|n| {
-                print!("{:.2} tps   ", n.lock().unwrap().0);
-            });
-            print!("\r");
-            //{
-            //print!(
-            //    "\r\x1b[2A+--------------+\n|{:>10.2} tps |\n+--------------+",
-            //    metrics.lock().unwrap().0
-            //);
-            //}
-            io::stdout().flush().unwrap();
+            display::print_tps(&m);
             Ok(())
         })
         .map_err(|e| panic!("Error in stdout task: {:?}", e));

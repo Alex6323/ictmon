@@ -16,7 +16,7 @@ pub struct IctNode {
     pub metrics: Arc<Mutex<Metrics>>,
 }
 
-pub fn create_nodes_from_single(name: &str, address: &str, port: u16) -> Vec<IctNode> {
+pub fn create_nodes_from_one(name: &str, address: &str, port: u16) -> Vec<IctNode> {
     let mut nodes = vec![];
 
     nodes.push(IctNode {

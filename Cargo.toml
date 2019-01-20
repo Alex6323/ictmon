@@ -9,3 +9,6 @@ zmq = "0.9.0"
 tokio = "0.1.14"
 lazy_static = "1"
 clap = { version = "2.32.0", features = ["yaml"] }
+futures = "0.1.25"
+tokio-signal = "0.2.7"
+crossterm = "0.5.4"

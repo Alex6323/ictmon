@@ -1,13 +1,16 @@
 #![allow(unreachable_code)]
-use tokio::{prelude::*, runtime::Runtime};
+use tokio::runtime::Runtime;
 
-use std::thread;
-use std::time::Duration;
+use std::{error::Error, thread, time::Duration};
 
 use clap::load_yaml;
 use clap::{App, ArgMatches};
 
+use futures::{Future, Stream};
+use tokio_signal;
+
 mod constants;
+mod display;
 mod nodes;
 mod tasks;
 
@@ -27,7 +30,7 @@ impl Arguments {
         let nodes = if matches.is_present(NODE_LIST_ARG) {
             create_nodes_from_file(ICT_LIST_FILE)
         } else {
-            create_nodes_from_single(
+            create_nodes_from_one(
                 matches.value_of(NAME_ARG).unwrap_or(DEFAULT_NAME),
                 matches.value_of(ADDRESS_ARG).unwrap_or(DEFAULT_HOST),
                 matches
@@ -47,15 +50,14 @@ impl Arguments {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<Error>> {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
     let args = Arguments::from_matches(matches);
+    let stop_signal = tokio_signal::ctrl_c().flatten_stream().take(1);
 
-    println!(
-        "*** Welcome to '{}' (Ict Network Monitor) {}. ***",
-        APP_NAME, APP_VERSION
-    );
+    display::print_welcome();
+    display::print_table(&args.nodes);
 
     let mut runtime = Runtime::new().unwrap();
 
@@ -67,7 +69,6 @@ fn main() {
     spawn_tps_tasks(&mut runtime, &args);
 
     if args.run_stdout_task == true {
-        println!("\n");
         spawn_stdout_task(&mut runtime, &args);
     }
 
@@ -75,5 +76,14 @@ fn main() {
         spawn_responder_task(&mut runtime, &args);
     }
 
-    runtime.shutdown_on_idle().wait().unwrap();
+    let receive_ctrl_c = stop_signal.for_each(|_| Ok(()));
+
+    tokio::runtime::current_thread::block_on_all(receive_ctrl_c)?;
+
+    //runtime.shutdown_on_idle().wait().unwrap();
+    runtime.shutdown_now();
+
+    display::print_shutdown();
+
+    Ok(())
 }

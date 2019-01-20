@@ -1,7 +1,7 @@
 name: ictmon 
 version: "0.2.0-alpha"
 author: Alex6323
-about: An IOTA Ict network monitor.
+about: An IOTA Ict node monitor.
 args:
     - address:
         required: false
