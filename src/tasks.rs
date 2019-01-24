@@ -144,7 +144,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
                                         responder
                                             .send(
                                                 &format!(
-                                                    "{:.2}",
+                                                    "tps:{:.2}",
                                                     metrics_move.lock().unwrap().tps_avg1
                                                 ),
                                                 0,
@@ -158,7 +158,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
                                         responder
                                             .send(
                                                 &format!(
-                                                    "{:.2}",
+                                                    "tps2:{:.2}",
                                                     metrics_move.lock().unwrap().tps_avg2
                                                 ),
                                                 0,
@@ -174,7 +174,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
                                     // TODO: replace 'Delay' future with 'Plot' future
                                     let render_task = plot::render_tps_graph()
                                         .and_then(|_| {
-                                            responder.send("ok", 0).unwrap();
+                                            responder.send("graph:ok", 0).unwrap();
                                             Ok(())
                                         })
                                         .map_err(|e| panic!("Error while responding to tps graph request: {:?}", e));

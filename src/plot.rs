@@ -44,8 +44,9 @@ pub fn render_tps_graph() -> ResponseFuture {
         }
     }
 
+    // Saving has to be another future (tokio-fs)
     // Save the image as “me.png”, the format is deduced from the path
-    imgbuf.save("me.png").unwrap();
+    imgbuf.save("graph.png").unwrap();
 
     Box::new(future::ok(()))
 }
