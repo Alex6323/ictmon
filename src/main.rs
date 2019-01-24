@@ -9,9 +9,13 @@ use clap::{App, ArgMatches};
 use futures::{Future, Stream};
 use tokio_signal;
 
+use log::*;
+
 mod constants;
 mod display;
+mod models;
 mod nodes;
+mod plot;
 mod tasks;
 
 use crate::constants::*;
@@ -30,7 +34,7 @@ impl Arguments {
         let nodes = if matches.is_present(NODE_LIST_ARG) {
             create_nodes_from_file(ICT_LIST_FILE)
         } else {
-            create_nodes_from_one(
+            create_nodes_from_cli(
                 matches.value_of(NAME_ARG).unwrap_or(DEFAULT_NAME),
                 matches.value_of(ADDRESS_ARG).unwrap_or(DEFAULT_HOST),
                 matches
@@ -61,18 +65,22 @@ fn main() -> Result<(), Box<Error>> {
 
     let mut runtime = Runtime::new().unwrap();
 
+    info!("Starting receiver tasks");
     spawn_receiver_tasks(&mut runtime, &args);
 
     // wait for the receiver tasks to be initialized properly before continuing
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
+    info!("Starting tps tasks");
     spawn_tps_tasks(&mut runtime, &args);
 
     if args.run_stdout_task == true {
+        info!("Starting stdout task");
         spawn_stdout_task(&mut runtime, &args);
     }
 
     if args.run_responder_task == true {
+        info!("Starting responder task");
         spawn_responder_task(&mut runtime, &args);
     }
 
@@ -80,6 +88,7 @@ fn main() -> Result<(), Box<Error>> {
 
     tokio::runtime::current_thread::block_on_all(receive_ctrl_c)?;
 
+    //TODO: use tripwire
     //runtime.shutdown_on_idle().wait().unwrap();
     runtime.shutdown_now();
 

@@ -11,8 +11,8 @@ use crossterm::{
 };
 
 use crate::constants::{APP_NAME, APP_VERSION};
+use crate::models::Metrics;
 use crate::nodes::IctNode;
-use crate::tasks::Metrics;
 
 pub fn print_welcome() {
     cursor().hide().unwrap();
@@ -60,7 +60,7 @@ pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
         cursor.goto(20, 3 + i as u16).unwrap();
         print!(
             "| {:.2} tps",
-            style(metrics[i].lock().unwrap().0).with(Color::Green)
+            style(metrics[i].lock().unwrap().tps_avg1).with(Color::Green)
         );
     }
 }

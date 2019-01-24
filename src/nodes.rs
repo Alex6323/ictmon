@@ -6,7 +6,7 @@ use std::{
     time::Instant,
 };
 
-use crate::Metrics;
+use crate::models::Metrics;
 
 pub struct IctNode {
     pub name: String,
@@ -16,7 +16,7 @@ pub struct IctNode {
     pub metrics: Arc<Mutex<Metrics>>,
 }
 
-pub fn create_nodes_from_one(name: &str, address: &str, port: u16) -> Vec<IctNode> {
+pub fn create_nodes_from_cli(name: &str, address: &str, port: u16) -> Vec<IctNode> {
     let mut nodes = vec![];
 
     nodes.push(IctNode {
@@ -24,7 +24,10 @@ pub fn create_nodes_from_one(name: &str, address: &str, port: u16) -> Vec<IctNod
         address: address.into(),
         port,
         arrivals: Arc::new(Mutex::new(VecDeque::new())),
-        metrics: Arc::new(Mutex::new(Metrics(0.0))),
+        metrics: Arc::new(Mutex::new(Metrics {
+            tps_avg1: 0.0,
+            tps_avg2: 0.0,
+        })),
     });
 
     nodes
@@ -44,7 +47,10 @@ pub fn create_nodes_from_file(file: &str) -> Vec<IctNode> {
                 address: parts[1].into(),
                 port: parts[2].parse::<u16>().unwrap(),
                 arrivals: Arc::new(Mutex::new(VecDeque::new())),
-                metrics: Arc::new(Mutex::new(Metrics(0.0))),
+                metrics: Arc::new(Mutex::new(Metrics {
+                    tps_avg1: 0.0,
+                    tps_avg2: 0.0,
+                })),
             })
         });
 

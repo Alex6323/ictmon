@@ -9,19 +9,23 @@ use tokio::{
     timer::{Delay, Interval},
 };
 
+use tokio_core::reactor::Core;
+
+use log::*;
+
 use crate::constants::*;
 use crate::display;
+use crate::models::Metrics;
+use crate::plot;
 use crate::Arguments;
 use crate::IctNode;
 
 use zmq::Context;
 
-pub struct Metrics(pub f32);
-
 pub fn spawn_receiver_tasks(runtime: &mut Runtime, args: &Arguments) {
     args.nodes
         .iter()
-        .for_each(|n| spawn_receiver_task(runtime, n, args.topic.clone()));
+        .for_each(|node| spawn_receiver_task(runtime, node, args.topic.clone()));
 }
 
 pub fn spawn_receiver_task(runtime: &mut Runtime, node: &IctNode, topic: String) {
@@ -36,9 +40,12 @@ pub fn spawn_receiver_task(runtime: &mut Runtime, node: &IctNode, topic: String)
             node.name, node.address, node.port
         )
     });
-    /*
-    print_info(format!("Listening to Ict node {} ({}:{}) ...", node.name, node.address, node.port));
-    */
+
+    info!(
+        "Listening to Ict node {} ({}:{}) ...",
+        node.name, node.address, node.port
+    );
+
     let subscription = topic.as_bytes();
     subscriber.set_subscribe(&subscription).unwrap();
 
@@ -66,7 +73,7 @@ pub fn spawn_tps_tasks(runtime: &mut Runtime, args: &Arguments) {
 }
 
 pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
-    let interval = Duration::from_secs(MOVING_AVG_INTERVAL_SEC);
+    let interval = Duration::from_secs(MOVING_AVG_INTERVAL1_SEC);
 
     let mut uptime_sec: u64 = 0;
     let init = Instant::now();
@@ -84,8 +91,8 @@ pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
 
                 uptime_sec = (instant - init).as_secs();
                 {
-                    metrics_move.lock().unwrap().0 =
-                        queue.len() as f32 / (min(MOVING_AVG_INTERVAL_SEC, uptime_sec) as f32);
+                    metrics_move.lock().unwrap().tps_avg1 =
+                        queue.len() as f32 / (min(MOVING_AVG_INTERVAL1_SEC, uptime_sec) as f32);
                 }
             }
             Ok(())
@@ -125,12 +132,64 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
     let responder_task = Delay::new(Instant::now())
         .and_then(move |_| {
             loop {
-                responder.recv_string(0).unwrap().unwrap();
-                //println!("Received request.");
-                {
-                    responder
-                        .send(&format!("{:.2}", metrics_move.lock().unwrap().0), 0)
-                        .unwrap();
+                match responder.recv_string(0) {
+                    Ok(r) => match r {
+                        Ok(s) => {
+                            info!("Received request: '{}'", s);
+
+                            match s.as_ref() {
+                                TPS_REQUEST1 => {
+                                    info!("Received tps request (1 min).");
+                                    {
+                                        responder
+                                            .send(
+                                                &format!(
+                                                    "{:.2}",
+                                                    metrics_move.lock().unwrap().tps_avg1
+                                                ),
+                                                0,
+                                            )
+                                            .unwrap();
+                                    }
+                                }
+                                TPS_REQUEST2 => {
+                                    info!("Received tps request (10 min).");
+                                    {
+                                        responder
+                                            .send(
+                                                &format!(
+                                                    "{:.2}",
+                                                    metrics_move.lock().unwrap().tps_avg2
+                                                ),
+                                                0,
+                                            )
+                                            .unwrap();
+                                    }
+                                }
+
+                                TPS_GRAPH_REQUEST => {
+                                    info!("Received tps graph request");
+
+                                    // create a future, that will render the graph and store it as png
+                                    // TODO: replace 'Delay' future with 'Plot' future
+                                    let render_task = plot::render_tps_graph()
+                                        .and_then(|_| {
+                                            responder.send("ok", 0).unwrap();
+                                            Ok(())
+                                        })
+                                        .map_err(|e| panic!("Error while responding to tps graph request: {:?}", e));
+
+                                    let mut reactor = Core::new().unwrap();
+                                    reactor.run(render_task).unwrap();
+                                }
+                                _ => {
+                                    warn!("Received unknown request.");
+                                }
+                            }
+                        }
+                        Err(e) => error!("error: {}", std::str::from_utf8(&e).unwrap()),
+                    },
+                    Err(e) => error!("error {}", e),
                 }
             }
             Ok(())
