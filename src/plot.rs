@@ -1,7 +1,5 @@
 // Make a tps graph
 use futures::{future, Future};
-use image::*;
-use num_complex::Complex;
 use std::io; // we cannot use error::Error because its size is not known at compile time
 
 type ResponseFuture = Box<Future<Item = (), Error = io::Error> + Send>;

@@ -1,13 +1,18 @@
 #![allow(unreachable_code)]
-use tokio::runtime::Runtime;
+//#![deny(warnings)]
 
-use std::{error::Error, thread, time::Duration};
+use futures::{Future, Stream};
+use tokio::runtime::Runtime;
+use tokio_signal;
+
+use std::{
+    error::Error,
+    thread,
+    time::{Duration, Instant},
+};
 
 use clap::load_yaml;
 use clap::{App, ArgMatches};
-
-use futures::{Future, Stream};
-use tokio_signal;
 
 use log::*;
 
@@ -58,17 +63,37 @@ fn main() -> Result<(), Box<Error>> {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
     let args = Arguments::from_matches(matches);
-    let stop_signal = tokio_signal::ctrl_c().flatten_stream().take(1);
 
+    //let stop_signal = tokio_signal::ctrl_c().flatten_stream().take(1);
+    //let receive_ctrl_c = stop_signal.for_each(|_| Ok(()));
+
+    // TODO: create a new screen, that when app is exited closes as well
     display::print_welcome();
     display::print_table(&args.nodes);
 
     let mut runtime = Runtime::new().unwrap();
 
-    info!("Starting receiver tasks");
-    spawn_receiver_tasks(&mut runtime, &args);
+    info!("Connecting to nodes");
+    let mut subscribers = vec![];
 
-    // wait for the receiver tasks to be initialized properly before continuing
+    args.nodes.iter().for_each(|node| {
+        let addr = format!("tcp://{}:{}", node.address, node.port);
+
+        let context = zmq::Context::new();
+        let subscriber = context
+            .socket(zmq::SUB)
+            .expect("Error: Couldn't create zmq socket.");
+
+        subscriber
+            .connect(&addr)
+            .expect("Error: Couldn't connect to node.");
+        subscriber
+            .set_subscribe(args.topic.as_bytes())
+            .expect("Error: Couldn't subscribe to node.");
+
+        subscribers.push(subscriber);
+    });
+
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
     info!("Starting tps tasks");
@@ -84,15 +109,32 @@ fn main() -> Result<(), Box<Error>> {
         spawn_responder_task(&mut runtime, &args);
     }
 
-    let receive_ctrl_c = stop_signal.for_each(|_| Ok(()));
+    let mut items = vec![];
+    subscribers.iter().for_each(|subscriber| {
+        items.push(subscriber.as_poll_item(zmq::POLLIN));
+    });
 
-    tokio::runtime::current_thread::block_on_all(receive_ctrl_c)?;
+    let mut msg = zmq::Message::new();
+    loop {
+        zmq::poll(&mut items, -1).unwrap();
+
+        for i in 0..subscribers.len() {
+            if items[i].is_readable() && subscribers[i].recv(&mut msg, 0).is_ok() {
+                let mut queue = args.nodes[i].arrivals.lock().unwrap();
+                queue.push_back(Instant::now());
+            }
+        }
+
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    //tokio::runtime::current_thread::block_on_all(receive_ctrl_c)?;
 
     //TODO: use tripwire
-    //runtime.shutdown_on_idle().wait().unwrap();
-    runtime.shutdown_now();
+    runtime.shutdown_on_idle().wait().unwrap();
+    //runtime.shutdown_now();
 
-    display::print_shutdown();
+    //display::print_shutdown();
 
     Ok(())
 }
