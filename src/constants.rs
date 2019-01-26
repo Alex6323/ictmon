@@ -29,6 +29,9 @@ pub const NO_STDOUT_ARG: &str = "no-stdout";
 pub const ICT_LIST_FILE: &str = "icts.txt";
 
 // Requests
-pub const TPS_REQUEST1: &str = "tps";
-pub const TPS_REQUEST2: &str = "tps2";
-pub const TPS_GRAPH_REQUEST: &str = "graph";
+pub const TPS_REQUEST: &str = "tps";
+pub const TPS2_REQUEST: &str = "tps2";
+pub const GRAPH_REQUEST: &str = "graph";
+
+// Display
+pub const CURSOR_RESET_Y: u16 = 8;

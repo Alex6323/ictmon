@@ -1,15 +1,10 @@
 #![allow(unreachable_code)]
 //#![deny(warnings)]
 
-use futures::{Future, Stream};
+use futures::Future;
 use tokio::runtime::Runtime;
-use tokio_signal;
 
-use std::{
-    error::Error,
-    thread,
-    time::{Duration, Instant},
-};
+use std::{error::Error, thread, time::Duration};
 
 use clap::load_yaml;
 use clap::{App, ArgMatches};
@@ -24,6 +19,7 @@ mod plot;
 mod tasks;
 
 use crate::constants::*;
+use crate::models::IctNode;
 use crate::nodes::*;
 use crate::tasks::*;
 
@@ -64,9 +60,6 @@ fn main() -> Result<(), Box<Error>> {
     let matches = App::from_yaml(yaml).get_matches();
     let args = Arguments::from_matches(matches);
 
-    //let stop_signal = tokio_signal::ctrl_c().flatten_stream().take(1);
-    //let receive_ctrl_c = stop_signal.for_each(|_| Ok(()));
-
     // TODO: create a new screen, that when app is exited closes as well
     display::print_welcome();
     display::print_table(&args.nodes);
@@ -74,30 +67,12 @@ fn main() -> Result<(), Box<Error>> {
     let mut runtime = Runtime::new().unwrap();
 
     info!("Connecting to nodes");
-    let mut subscribers = vec![];
-
-    args.nodes.iter().for_each(|node| {
-        let addr = format!("tcp://{}:{}", node.address, node.port);
-
-        let context = zmq::Context::new();
-        let subscriber = context
-            .socket(zmq::SUB)
-            .expect("Error: Couldn't create zmq socket.");
-
-        subscriber
-            .connect(&addr)
-            .expect("Error: Couldn't connect to node.");
-        subscriber
-            .set_subscribe(args.topic.as_bytes())
-            .expect("Error: Couldn't subscribe to node.");
-
-        subscribers.push(subscriber);
-    });
-
+    spawn_poller_task(&mut runtime, &args);
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
     info!("Starting tps tasks");
-    spawn_tps_tasks(&mut runtime, &args);
+    spawn_tps1_tasks(&mut runtime, &args);
+    spawn_tps2_tasks(&mut runtime, &args);
 
     if args.run_stdout_task == true {
         info!("Starting stdout task");
@@ -109,32 +84,7 @@ fn main() -> Result<(), Box<Error>> {
         spawn_responder_task(&mut runtime, &args);
     }
 
-    let mut items = vec![];
-    subscribers.iter().for_each(|subscriber| {
-        items.push(subscriber.as_poll_item(zmq::POLLIN));
-    });
-
-    let mut msg = zmq::Message::new();
-    loop {
-        zmq::poll(&mut items, -1).unwrap();
-
-        for i in 0..subscribers.len() {
-            if items[i].is_readable() && subscribers[i].recv(&mut msg, 0).is_ok() {
-                let mut queue = args.nodes[i].arrivals.lock().unwrap();
-                queue.push_back(Instant::now());
-            }
-        }
-
-        thread::sleep(Duration::from_millis(10));
-    }
-
-    //tokio::runtime::current_thread::block_on_all(receive_ctrl_c)?;
-
-    //TODO: use tripwire
     runtime.shutdown_on_idle().wait().unwrap();
-    //runtime.shutdown_now();
-
-    //display::print_shutdown();
 
     Ok(())
 }

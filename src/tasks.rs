@@ -1,15 +1,10 @@
 use std::{
     cmp::min,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
-use tokio::{
-    prelude::*,
-    runtime::Runtime,
-    timer::{Delay, Interval},
-};
-
-use tokio_core::reactor::Core;
+use tokio::{prelude::*, runtime::Runtime, timer::Interval};
 
 use log::*;
 
@@ -22,76 +17,90 @@ use crate::IctNode;
 
 use zmq::Context;
 
-pub fn spawn_receiver_tasks(runtime: &mut Runtime, args: &Arguments) {
-    args.nodes
-        .iter()
-        .for_each(|node| spawn_receiver_task(runtime, node, args.topic.clone()));
-}
+///
+pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
+    let mut subscribers = vec![];
+    args.nodes.iter().for_each(|node| {
+        //spawn_poller_task(&mut runtime, node, args.topic.clone()))
 
-pub fn spawn_receiver_task(runtime: &mut Runtime, node: &IctNode, topic: String) {
-    let context = Context::new();
-    let subscriber = context.socket(zmq::SUB).unwrap();
-    let address = format!("tcp://{}:{}", node.address, node.port);
+        let context = Context::new();
+        let subscriber = context.socket(zmq::SUB).unwrap();
+        let address = format!("tcp://{}:{}", node.address, node.port);
 
-    //TODO: get proper error message (maybe two lines in the file are the same?)
-    subscriber.connect(&address).unwrap_or_else(|_| {
-        panic!(
-            "Failed to connect to Ict node {} ({}:{}).",
+        //TODO: get proper error message (maybe two lines in the file are the same?)
+        subscriber.connect(&address).unwrap_or_else(|_| {
+            panic!(
+                "Failed to connect to Ict node {} ({}:{}).",
+                node.name, node.address, node.port
+            )
+        });
+
+        info!(
+            "Listening to Ict node {} ({}:{}) ...",
             node.name, node.address, node.port
-        )
+        );
+
+        let subscription = args.topic.as_bytes();
+        subscriber.set_subscribe(&subscription).unwrap();
+
+        subscribers.push((subscriber, node.arrivals.clone(), node.arrivals2.clone()));
     });
 
-    info!(
-        "Listening to Ict node {} ({}:{}) ...",
-        node.name, node.address, node.port
-    );
+    let mut msg = zmq::Message::new();
+    let poller_task = Interval::new_interval(Duration::from_millis(1))
+        .for_each(move |_| {
+            let mut poll_items = vec![];
+            subscribers.iter().for_each(|(subscriber, _, _)| {
+                poll_items.push(subscriber.as_poll_item(zmq::POLLIN));
+            });
 
-    let subscription = topic.as_bytes();
-    subscriber.set_subscribe(&subscription).unwrap();
+            zmq::poll(&mut poll_items, 10).unwrap();
 
-    let arrivals_move = node.arrivals.clone();
-    let receiver_task = Delay::new(Instant::now())
-        .and_then(move |_| {
-            let mut arrival_timestamp: Instant;
-            loop {
-                // For now, we are not interested in the message itself
-                subscriber.recv_msg(0).unwrap();
-                arrival_timestamp = Instant::now();
+            subscribers
+                .iter()
+                .enumerate()
+                .for_each(|(i, (subscriber, arrivals, arrivals2))| {
+                    if poll_items[i].is_readable() && subscriber.recv(&mut msg, 0).is_ok() {
+                        let instant = Instant::now();
 
-                let mut queue = arrivals_move.lock().unwrap();
-                queue.push_back(arrival_timestamp);
-            }
+                        let mut queue = arrivals.lock().unwrap();
+                        queue.push_back(instant);
+                        let mut queue = arrivals2.lock().unwrap();
+                        queue.push_back(instant);
+                    }
+                });
             Ok(())
         })
-        .map_err(|e| panic!("Error in receiver task: {:?}", e));
+        .map_err(|e| panic!("Error in poller task: {:?}", e));
 
-    runtime.spawn(receiver_task);
+    runtime.spawn(poller_task);
 }
 
-pub fn spawn_tps_tasks(runtime: &mut Runtime, args: &Arguments) {
-    args.nodes.iter().for_each(|n| spawn_tps_task(runtime, n));
+pub fn spawn_tps1_tasks(runtime: &mut Runtime, args: &Arguments) {
+    args.nodes.iter().for_each(|n| spawn_tps1_task(runtime, n));
 }
 
-pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
+pub fn spawn_tps1_task<'a>(runtime: &mut Runtime, node: &IctNode) {
     let interval = Duration::from_secs(MOVING_AVG_INTERVAL1_SEC);
 
     let mut uptime_sec: u64 = 0;
     let init = Instant::now();
 
-    let arrivals_move = node.arrivals.clone();
-    let metrics_move = node.metrics.clone();
-    let tps_task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
+    let arrivals = node.arrivals.clone();
+    let metrics = node.metrics.clone();
+
+    let tps1_task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
         .for_each(move |instant| {
             let window_start = instant - interval;
             {
-                let mut queue = arrivals_move.lock().unwrap();
+                let mut queue = arrivals.lock().unwrap();
                 while queue.len() > 0 && queue.front().unwrap() < &window_start {
                     queue.pop_front();
                 }
 
                 uptime_sec = (instant - init).as_secs();
                 {
-                    metrics_move.lock().unwrap().tps_avg1 =
+                    metrics.lock().unwrap().tps_avg1 =
                         queue.len() as f32 / (min(MOVING_AVG_INTERVAL1_SEC, uptime_sec) as f32);
                 }
             }
@@ -99,9 +108,43 @@ pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
         })
         .map_err(|e| panic!("Error in tps task: {:?}", e));
 
-    runtime.spawn(tps_task);
+    runtime.spawn(tps1_task);
 }
-use std::sync::{Arc, Mutex};
+
+pub fn spawn_tps2_tasks(runtime: &mut Runtime, args: &Arguments) {
+    args.nodes.iter().for_each(|n| spawn_tps2_task(runtime, n));
+}
+
+pub fn spawn_tps2_task<'a>(runtime: &mut Runtime, node: &IctNode) {
+    let interval = Duration::from_secs(MOVING_AVG_INTERVAL2_SEC);
+
+    let mut uptime_sec: u64 = 0;
+    let init = Instant::now();
+
+    let arrivals2 = node.arrivals2.clone();
+    let metrics = node.metrics.clone();
+
+    let tps2_task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
+        .for_each(move |instant| {
+            let window_start = instant - interval;
+            {
+                let mut queue = arrivals2.lock().unwrap();
+                while queue.len() > 0 && queue.front().unwrap() < &window_start {
+                    queue.pop_front();
+                }
+
+                uptime_sec = (instant - init).as_secs();
+                {
+                    metrics.lock().unwrap().tps_avg2 =
+                        queue.len() as f32 / (min(MOVING_AVG_INTERVAL2_SEC, uptime_sec) as f32);
+                }
+            }
+            Ok(())
+        })
+        .map_err(|e| panic!("Error in tps-2 task: {:?}", e));
+
+    runtime.spawn(tps2_task);
+}
 
 pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
     let mut m: Vec<Arc<Mutex<Metrics>>> = vec![];
@@ -110,6 +153,7 @@ pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
     let stdout_task = Interval::new_interval(Duration::from_millis(STDOUT_UPDATE_INTERVAL_MS))
         .for_each(move |_| {
             display::print_tps(&m);
+            display::print_tps2(&m);
             Ok(())
         })
         .map_err(|e| panic!("Error in stdout task: {:?}", e));
@@ -129,72 +173,63 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
         .expect("Could not bind responder socket.");
 
     let metrics_move = args.nodes[0].metrics.clone();
-    let responder_task = Delay::new(Instant::now())
-        .and_then(move |_| {
-            loop {
-                match responder.recv_string(0) {
-                    Ok(r) => match r {
-                        Ok(s) => {
-                            info!("Received request: '{}'", s);
 
-                            match s.as_ref() {
-                                TPS_REQUEST1 => {
-                                    info!("Received tps request (1 min).");
-                                    {
-                                        responder
-                                            .send(
-                                                &format!(
-                                                    "tps:{:.2}",
-                                                    metrics_move.lock().unwrap().tps_avg1
-                                                ),
-                                                0,
-                                            )
-                                            .unwrap();
-                                    }
-                                }
-                                TPS_REQUEST2 => {
-                                    info!("Received tps request (10 min).");
-                                    {
-                                        responder
-                                            .send(
-                                                &format!(
-                                                    "tps2:{:.2}",
-                                                    metrics_move.lock().unwrap().tps_avg2
-                                                ),
-                                                0,
-                                            )
-                                            .unwrap();
-                                    }
-                                }
+    let mut msg = zmq::Message::new();
+    let poller_task = Interval::new_interval(Duration::from_millis(100))
+        .for_each(move |_| {
+            let mut poll_items = [responder.as_poll_item(zmq::POLLIN)];
 
-                                TPS_GRAPH_REQUEST => {
-                                    info!("Received tps graph request");
+            zmq::poll(&mut poll_items, 10).unwrap();
 
-                                    // create a future, that will render the graph and store it as png
-                                    // TODO: replace 'Delay' future with 'Plot' future
-                                    let render_task = plot::render_tps_graph()
-                                        .and_then(|_| {
-                                            responder.send("graph:ok", 0).unwrap();
-                                            Ok(())
-                                        })
-                                        .map_err(|e| panic!("Error while responding to tps graph request: {:?}", e));
-
-                                    let mut reactor = Core::new().unwrap();
-                                    reactor.run(render_task).unwrap();
-                                }
-                                _ => {
-                                    warn!("Received unknown request.");
-                                }
-                            }
+            if poll_items[0].is_readable() && responder.recv(&mut msg, 0).is_ok() {
+                let msg = std::str::from_utf8(&msg).unwrap();
+                match msg {
+                    TPS_REQUEST => {
+                        info!("Received tps request (1 min).");
+                        {
+                            responder
+                                .send(
+                                    &format!("tps:{:.2}", metrics_move.lock().unwrap().tps_avg1),
+                                    0,
+                                )
+                                .unwrap();
                         }
-                        Err(e) => error!("error: {}", std::str::from_utf8(&e).unwrap()),
-                    },
-                    Err(e) => error!("error {}", e),
+                    }
+                    TPS2_REQUEST => {
+                        info!("Received tps-2 request (10 min).");
+                        {
+                            responder
+                                .send(
+                                    &format!("tps2:{:.2}", metrics_move.lock().unwrap().tps_avg2),
+                                    0,
+                                )
+                                .unwrap();
+                        }
+                    }
+
+                    GRAPH_REQUEST => {
+                        info!("Received graph request");
+
+                        // create a future, that will render the graph and store it as png
+                        let render_task = plot::render_tps_graph()
+                            .and_then(|_| {
+                                responder.send("graph:ok", 0).unwrap();
+                                Ok(())
+                            })
+                            .map_err(|e| {
+                                panic!("Error while responding to tps graph request: {:?}", e)
+                            });
+
+                        // TODO: start render task
+                    }
+                    _ => {
+                        warn!("Received unknown request.");
+                    }
                 }
             }
             Ok(())
         })
-        .map_err(|e| panic!("Error in responder task: {:?}", e));
+        .map_err(|e| panic!("Error in poller task: {:?}", e));
 
-    runtime.spawn(responder_task);
+    runtime.spawn(poller_task);
 }

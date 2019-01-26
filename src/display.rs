@@ -1,4 +1,5 @@
 use std::{
+    io::{stdout, Write},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -10,12 +11,11 @@ use crossterm::{
     terminal::{terminal, ClearType},
 };
 
-use crate::constants::{APP_NAME, APP_VERSION};
-use crate::models::Metrics;
-use crate::nodes::IctNode;
+use crate::constants::{APP_NAME, APP_VERSION, CURSOR_RESET_Y};
+use crate::models::{IctNode, Metrics};
 
 pub fn print_welcome() {
-    cursor().hide().unwrap();
+    //cursor().hide().unwrap();
     terminal().clear(ClearType::All).unwrap();
 
     println!(
@@ -51,18 +51,44 @@ pub fn print_table(nodes: &Vec<IctNode>) {
         cursor.goto(2, 3 + i as u16).unwrap();
         print!("{}", style(&nodes[i].name).with(Color::Yellow));
     }
+
+    reset_cursor();
 }
 
 pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
     let cursor = cursor();
 
     for i in 0..metrics.len() {
-        cursor.goto(20, 3 + i as u16).unwrap();
+        cursor.goto(22, 3 + i as u16).unwrap();
         print!(
-            "| {:.2} tps",
+            "| {:.2} tps (1min)",
             style(metrics[i].lock().unwrap().tps_avg1).with(Color::Green)
         );
     }
+    stdout().flush().unwrap();
+
+    reset_cursor();
+}
+
+pub fn print_tps2(metrics: &Vec<Arc<Mutex<Metrics>>>) {
+    let cursor = cursor();
+
+    for i in 0..metrics.len() {
+        cursor.goto(42, 3 + i as u16).unwrap();
+        print!(
+            "| {:.2} tps (10min)",
+            style(metrics[i].lock().unwrap().tps_avg2).with(Color::Green)
+        );
+    }
+    stdout().flush().unwrap();
+
+    reset_cursor();
+}
+
+// TODO: make this dynamic
+fn reset_cursor() {
+    let cursor = cursor();
+    cursor.goto(0, CURSOR_RESET_Y).unwrap();
 }
 
 pub fn print_shutdown() {
