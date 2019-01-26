@@ -20,9 +20,8 @@ use zmq::Context;
 ///
 pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
     let mut subscribers = vec![];
-    args.nodes.iter().for_each(|node| {
-        //spawn_poller_task(&mut runtime, node, args.topic.clone()))
 
+    args.nodes.iter().for_each(|node| {
         let context = Context::new();
         let subscriber = context.socket(zmq::SUB).unwrap();
         let address = format!("tcp://{}:{}", node.address, node.port);
@@ -47,7 +46,7 @@ pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
     });
 
     let mut msg = zmq::Message::new();
-    let poller_task = Interval::new_interval(Duration::from_millis(1))
+    let poller_task = Interval::new_interval(Duration::from_millis(POLLER_INTERVAL_MS))
         .for_each(move |_| {
             let mut poll_items = vec![];
             subscribers.iter().for_each(|(subscriber, _, _)| {
@@ -89,7 +88,7 @@ pub fn spawn_tps1_task<'a>(runtime: &mut Runtime, node: &IctNode) {
     let arrivals = node.arrivals.clone();
     let metrics = node.metrics.clone();
 
-    let tps1_task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
+    let tps1_task = Interval::new_interval(Duration::from_millis(TPS_UPDATE_INTERVAL_MS))
         .for_each(move |instant| {
             let window_start = instant - interval;
             {
@@ -124,7 +123,7 @@ pub fn spawn_tps2_task<'a>(runtime: &mut Runtime, node: &IctNode) {
     let arrivals2 = node.arrivals2.clone();
     let metrics = node.metrics.clone();
 
-    let tps2_task = Interval::new_interval(Duration::from_millis(UPDATE_INTERVAL_MS))
+    let tps2_task = Interval::new_interval(Duration::from_millis(TPS_UPDATE_INTERVAL_MS))
         .for_each(move |instant| {
             let window_start = instant - interval;
             {
