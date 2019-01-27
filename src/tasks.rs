@@ -11,7 +11,7 @@ use log::*;
 use crate::constants::*;
 use crate::display;
 use crate::models::Metrics;
-use crate::plot;
+use crate::plotter;
 use crate::Arguments;
 use crate::IctNode;
 
@@ -42,14 +42,14 @@ pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
         let subscription = args.topic.as_bytes();
         subscriber.set_subscribe(&subscription).unwrap();
 
-        subscribers.push((subscriber, node.arrivals.clone(), node.arrivals2.clone()));
+        subscribers.push((subscriber, node.events.clone()));
     });
 
     let mut msg = zmq::Message::new();
-    let poller_task = Interval::new_interval(Duration::from_millis(POLLER_INTERVAL_MS))
+    let sub_poller_task = Interval::new_interval(Duration::from_millis(SUB_POLLER_INTERVAL_MS))
         .for_each(move |_| {
             let mut poll_items = vec![];
-            subscribers.iter().for_each(|(subscriber, _, _)| {
+            subscribers.iter().for_each(|(subscriber, _)| {
                 poll_items.push(subscriber.as_poll_item(zmq::POLLIN));
             });
 
@@ -58,91 +58,88 @@ pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
             subscribers
                 .iter()
                 .enumerate()
-                .for_each(|(i, (subscriber, arrivals, arrivals2))| {
+                .for_each(|(i, (subscriber, events))| {
                     if poll_items[i].is_readable() && subscriber.recv(&mut msg, 0).is_ok() {
                         let instant = Instant::now();
 
-                        let mut queue = arrivals.lock().unwrap();
-                        queue.push_back(instant);
-                        let mut queue = arrivals2.lock().unwrap();
-                        queue.push_back(instant);
+                        let mut events = events.lock().unwrap();
+
+                        events.timestamps1.push_back(instant);
+                        events.timestamps2.push_back(instant);
                     }
                 });
             Ok(())
         })
         .map_err(|e| panic!("Error in poller task: {:?}", e));
 
-    runtime.spawn(poller_task);
+    runtime.spawn(sub_poller_task);
 }
 
-pub fn spawn_tps1_tasks(runtime: &mut Runtime, args: &Arguments) {
-    args.nodes.iter().for_each(|n| spawn_tps1_task(runtime, n));
+pub fn spawn_tps_tasks(runtime: &mut Runtime, args: &Arguments) {
+    args.nodes.iter().for_each(|n| spawn_tps_task(runtime, n));
 }
 
-pub fn spawn_tps1_task<'a>(runtime: &mut Runtime, node: &IctNode) {
-    let interval = Duration::from_secs(MOVING_AVG_INTERVAL1_SEC);
+pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
+    let avg_interval1 = Duration::from_secs(MOVING_AVG_INTERVAL1_SEC);
+    let avg_interval2 = Duration::from_secs(MOVING_AVG_INTERVAL2_SEC);
 
     let mut uptime_sec: u64 = 0;
     let init = Instant::now();
 
-    let arrivals = node.arrivals.clone();
+    let events = node.events.clone();
     let metrics = node.metrics.clone();
 
-    let tps1_task = Interval::new_interval(Duration::from_millis(TPS_UPDATE_INTERVAL_MS))
+    let tps_task = Interval::new_interval(Duration::from_millis(TPS_UPDATE_INTERVAL_MS))
         .for_each(move |instant| {
-            let window_start = instant - interval;
+            let timeframe1_start = instant - avg_interval1;
+            let timeframe2_start = instant - avg_interval2;
             {
-                let mut queue = arrivals.lock().unwrap();
-                while queue.len() > 0 && queue.front().unwrap() < &window_start {
-                    queue.pop_front();
+                let mut events = events.lock().unwrap();
+
+                while events.timestamps1.len() > 0
+                    && events.timestamps1.front().unwrap() < &timeframe1_start
+                {
+                    events.timestamps1.pop_front();
                 }
 
+                while events.timestamps2.len() > 0
+                    && events.timestamps2.front().unwrap() < &timeframe2_start
+                {
+                    events.timestamps2.pop_front();
+                }
+
+                // NOTE: 'uptime' doesn't have to be very accurate, since it only prevents very off
+                // calculation results during the very first avg-interval after app launch
+                // It's unfortunate I have to call the 'min' function for all eternity, if I want to
+                // prevent extra lines.
                 uptime_sec = (instant - init).as_secs();
                 {
-                    metrics.lock().unwrap().tps_avg1 =
-                        queue.len() as f32 / (min(MOVING_AVG_INTERVAL1_SEC, uptime_sec) as f32);
+                    let metrics = &mut metrics.lock().unwrap();
+
+                    if metrics.tps_avg1.len() == METRICS_HISTORY {
+                        metrics.tps_avg1.pop_front();
+                    }
+
+                    if metrics.tps_avg2.len() == METRICS_HISTORY {
+                        metrics.tps_avg2.pop_front();
+                    }
+
+                    metrics.tps_avg1.push_back(
+                        events.timestamps1.len() as f64
+                            / (min(MOVING_AVG_INTERVAL1_SEC, uptime_sec) as f64),
+                    );
+
+                    metrics.tps_avg2.push_back(
+                        events.timestamps2.len() as f64
+                            / (min(MOVING_AVG_INTERVAL2_SEC, uptime_sec) as f64),
+                    );
                 }
             }
             Ok(())
         })
         .map_err(|e| panic!("Error in tps task: {:?}", e));
 
-    runtime.spawn(tps1_task);
-}
-
-pub fn spawn_tps2_tasks(runtime: &mut Runtime, args: &Arguments) {
-    args.nodes.iter().for_each(|n| spawn_tps2_task(runtime, n));
-}
-
-pub fn spawn_tps2_task<'a>(runtime: &mut Runtime, node: &IctNode) {
-    let interval = Duration::from_secs(MOVING_AVG_INTERVAL2_SEC);
-
-    let mut uptime_sec: u64 = 0;
-    let init = Instant::now();
-
-    let arrivals2 = node.arrivals2.clone();
-    let metrics = node.metrics.clone();
-
-    let tps2_task = Interval::new_interval(Duration::from_millis(TPS_UPDATE_INTERVAL_MS))
-        .for_each(move |instant| {
-            let window_start = instant - interval;
-            {
-                let mut queue = arrivals2.lock().unwrap();
-                while queue.len() > 0 && queue.front().unwrap() < &window_start {
-                    queue.pop_front();
-                }
-
-                uptime_sec = (instant - init).as_secs();
-                {
-                    metrics.lock().unwrap().tps_avg2 =
-                        queue.len() as f32 / (min(MOVING_AVG_INTERVAL2_SEC, uptime_sec) as f32);
-                }
-            }
-            Ok(())
-        })
-        .map_err(|e| panic!("Error in tps-2 task: {:?}", e));
-
-    runtime.spawn(tps2_task);
+    runtime.spawn(tps_task);
 }
 
 pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
@@ -174,7 +171,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
     let metrics_move = args.nodes[0].metrics.clone();
 
     let mut msg = zmq::Message::new();
-    let poller_task = Interval::new_interval(Duration::from_millis(100))
+    let rep_poller_task = Interval::new_interval(Duration::from_millis(100))
         .for_each(move |_| {
             let mut poll_items = [responder.as_poll_item(zmq::POLLIN)];
 
@@ -186,40 +183,59 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
                     TPS_REQUEST => {
                         info!("Received tps request (1 min).");
                         {
-                            responder
-                                .send(
-                                    &format!("tps:{:.2}", metrics_move.lock().unwrap().tps_avg1),
-                                    0,
-                                )
-                                .unwrap();
+                            let tps = match metrics_move.lock().unwrap().tps_avg1.back() {
+                                Some(&tps) => tps,
+                                None => 0.0,
+                            };
+
+                            responder.send(&format!("tps:{:.2}", tps), 0).unwrap();
                         }
                     }
                     TPS2_REQUEST => {
                         info!("Received tps-2 request (10 min).");
                         {
-                            responder
-                                .send(
-                                    &format!("tps2:{:.2}", metrics_move.lock().unwrap().tps_avg2),
-                                    0,
-                                )
-                                .unwrap();
+                            let tps = match metrics_move.lock().unwrap().tps_avg2.back() {
+                                Some(&tps) => tps,
+                                None => 0.0,
+                            };
+
+                            responder.send(&format!("tps2:{:.2}", tps), 0).unwrap();
                         }
                     }
 
                     GRAPH_REQUEST => {
                         info!("Received graph request");
+                        {
+                            let metrics = metrics_move.lock().unwrap();
 
-                        // create a future, that will render the graph and store it as png
-                        let render_task = plot::render_tps_graph()
-                            .and_then(|_| {
-                                responder.send("graph:ok", 0).unwrap();
-                                Ok(())
-                            })
-                            .map_err(|e| {
-                                panic!("Error while responding to tps graph request: {:?}", e)
-                            });
+                            let data1 = metrics
+                                .tps_avg1
+                                .iter()
+                                .enumerate()
+                                .map(|(i, &d)| (i as f64, d as f64))
+                                .collect::<Vec<(f64, f64)>>();
 
-                        // TODO: start render task
+                            let data2 = metrics
+                                .tps_avg2
+                                .iter()
+                                .enumerate()
+                                .map(|(i, &d)| (i as f64, d as f64))
+                                .collect::<Vec<(f64, f64)>>();
+
+                            // NOTE: I cannot make the 'rendering' an asynchronous task, until I know
+                            // a way to safely share the responder zmq socket
+                            let result = match plotter::render_graph(&data1, &data2) {
+                                Ok(_) => "ok",
+                                Err(_) => "err",
+                            };
+
+                            // For now we just notify the requester, that we rendered and stored the graph, because
+                            // that's enough for what we need right now (local Discord bot). To make it more useful
+                            // Ictmon should send the result base64 encoded to the requester.
+                            {
+                                responder.send(&format!("graph:{}", result), 0).unwrap();
+                            }
+                        }
                     }
                     _ => {
                         warn!("Received unknown request.");
@@ -230,5 +246,5 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
         })
         .map_err(|e| panic!("Error in poller task: {:?}", e));
 
-    runtime.spawn(poller_task);
+    runtime.spawn(rep_poller_task);
 }

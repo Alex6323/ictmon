@@ -5,10 +5,11 @@ pub const APP_NAME: &str = "ictmon";
 // Intervals
 pub const INITIAL_SLEEP_MS: u64 = 1000;
 pub const STDOUT_UPDATE_INTERVAL_MS: u64 = 1000;
-pub const POLLER_INTERVAL_MS: u64 = 10;
+pub const SUB_POLLER_INTERVAL_MS: u64 = 10;
 pub const TPS_UPDATE_INTERVAL_MS: u64 = 1000;
 pub const MOVING_AVG_INTERVAL1_SEC: u64 = 60;
 pub const MOVING_AVG_INTERVAL2_SEC: u64 = 600;
+pub const METRICS_HISTORY: usize = 3600;
 
 // Default arguments
 pub const DEFAULT_NAME: &str = "ict-0";

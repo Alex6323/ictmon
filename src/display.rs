@@ -31,9 +31,11 @@ pub fn print_welcome() {
     thread::sleep(Duration::from_millis(1000));
 }
 
+/*
 pub fn print_info(info: String) {
     println!("{}", style(format!("Info: {}", info)).with(Color::Yellow));
 }
+*/
 
 pub fn print_table(nodes: &Vec<IctNode>) {
     let (width, _) = terminal().terminal_size();
@@ -62,7 +64,7 @@ pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
         cursor.goto(22, 3 + i as u16).unwrap();
         print!(
             "| {:.2} tps (1min)",
-            style(metrics[i].lock().unwrap().tps_avg1).with(Color::Green)
+            style(metrics[i].lock().unwrap().tps_avg1.back().unwrap()).with(Color::Green)
         );
     }
     stdout().flush().unwrap();
@@ -77,7 +79,7 @@ pub fn print_tps2(metrics: &Vec<Arc<Mutex<Metrics>>>) {
         cursor.goto(42, 3 + i as u16).unwrap();
         print!(
             "| {:.2} tps (10min)",
-            style(metrics[i].lock().unwrap().tps_avg2).with(Color::Green)
+            style(metrics[i].lock().unwrap().tps_avg2.back().unwrap()).with(Color::Green)
         );
     }
     stdout().flush().unwrap();
@@ -91,6 +93,7 @@ fn reset_cursor() {
     cursor.goto(0, CURSOR_RESET_Y).unwrap();
 }
 
+/*
 pub fn print_shutdown() {
     let mut cursor = cursor();
 
@@ -102,3 +105,4 @@ pub fn print_shutdown() {
 
     cursor.show().unwrap();
 }
+*/

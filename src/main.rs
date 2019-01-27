@@ -1,5 +1,6 @@
-#![allow(unreachable_code)]
-//#![deny(warnings)]
+// NOTE: swap the inclusion of the following two lines before releases
+//#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
+#![deny(warnings)]
 
 use futures::Future;
 use tokio::runtime::Runtime;
@@ -15,7 +16,7 @@ mod constants;
 mod display;
 mod models;
 mod nodes;
-mod plot;
+mod plotter;
 mod tasks;
 
 use crate::constants::*;
@@ -71,8 +72,7 @@ fn main() -> Result<(), Box<Error>> {
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
     info!("Starting tps tasks");
-    spawn_tps1_tasks(&mut runtime, &args);
-    spawn_tps2_tasks(&mut runtime, &args);
+    spawn_tps_tasks(&mut runtime, &args);
 
     if args.run_stdout_task == true {
         info!("Starting stdout task");
