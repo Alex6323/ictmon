@@ -36,4 +36,7 @@ pub const TPS2_REQUEST: &str = "tps2";
 pub const GRAPH_REQUEST: &str = "graph";
 
 // Display
-pub const CURSOR_RESET_Y: u16 = 8;
+pub const MAX_TABLE_WIDTH: u16 = 80;
+pub const TABLE_COLUMN_WIDTH: u16 = 25;
+pub const TABLE_TPS_TOP: u16 = 3;
+pub const TABLE_CONTENT_LEFT: u16 = 2;

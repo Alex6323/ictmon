@@ -1,6 +1,5 @@
 use std::{
     cmp::min,
-    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -10,7 +9,6 @@ use log::*;
 
 use crate::constants::*;
 use crate::display;
-use crate::models::Metrics;
 use crate::plotter;
 use crate::Arguments;
 use crate::IctNode;
@@ -143,13 +141,14 @@ pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
 }
 
 pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
-    let mut m: Vec<Arc<Mutex<Metrics>>> = vec![];
-    args.nodes.iter().for_each(|n| m.push(n.metrics.clone()));
+    let mut metrics = vec![];
+    args.nodes
+        .iter()
+        .for_each(|node| metrics.push(node.metrics.clone()));
 
     let stdout_task = Interval::new_interval(Duration::from_millis(STDOUT_UPDATE_INTERVAL_MS))
         .for_each(move |_| {
-            display::print_tps(&m);
-            display::print_tps2(&m);
+            display::print_tps(&metrics);
             Ok(())
         })
         .map_err(|e| panic!("Error in stdout task: {:?}", e));
@@ -212,14 +211,14 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
                                 .tps_avg1
                                 .iter()
                                 .enumerate()
-                                .map(|(i, &d)| (i as f64, d as f64))
+                                .map(|(i, &d)| (i as f64, d))
                                 .collect::<Vec<(f64, f64)>>();
 
                             let data2 = metrics
                                 .tps_avg2
                                 .iter()
                                 .enumerate()
-                                .map(|(i, &d)| (i as f64, d as f64))
+                                .map(|(i, &d)| (i as f64, d))
                                 .collect::<Vec<(f64, f64)>>();
 
                             // NOTE: I cannot make the 'rendering' an asynchronous task, until I know

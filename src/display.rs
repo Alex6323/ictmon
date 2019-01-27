@@ -11,7 +11,7 @@ use crossterm::{
     terminal::{terminal, ClearType},
 };
 
-use crate::constants::{APP_NAME, APP_VERSION, CURSOR_RESET_Y};
+use crate::constants::*;
 use crate::models::{IctNode, Metrics};
 
 pub fn print_welcome() {
@@ -39,8 +39,11 @@ pub fn print_info(info: String) {
 
 pub fn print_table(nodes: &Vec<IctNode>) {
     let (width, _) = terminal().terminal_size();
-    let width = std::cmp::min(80_u16, width);
+    let width = std::cmp::min(MAX_TABLE_WIDTH, width);
     let cursor = cursor();
+
+    // TODO: print header
+    //println!("+{}+", "-".repeat(width as usize - 2));
 
     // TODO: print all borders here
     println!("+{}+", "-".repeat(width as usize - 2));
@@ -50,47 +53,62 @@ pub fn print_table(nodes: &Vec<IctNode>) {
     println!("+{}+", "-".repeat(width as usize - 2));
 
     for i in 0..nodes.len() {
-        cursor.goto(2, 3 + i as u16).unwrap();
+        cursor
+            .goto(TABLE_CONTENT_LEFT, TABLE_TPS_TOP + i as u16)
+            .unwrap();
         print!("{}", style(&nodes[i].name).with(Color::Yellow));
     }
 
-    reset_cursor();
+    reset_cursor(nodes.len() as u16 + TABLE_TPS_TOP + 1);
 }
 
 pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
     let cursor = cursor();
+    let (_, y) = cursor.pos();
 
-    for i in 0..metrics.len() {
-        cursor.goto(22, 3 + i as u16).unwrap();
-        print!(
-            "| {:.2} tps (1min)",
-            style(metrics[i].lock().unwrap().tps_avg1.back().unwrap()).with(Color::Green)
-        );
-    }
+    metrics.iter().enumerate().for_each(|(i, m)| {
+        cursor
+            .goto(
+                TABLE_CONTENT_LEFT + TABLE_COLUMN_WIDTH,
+                TABLE_TPS_TOP + i as u16,
+            )
+            .unwrap();
+
+        let metrics = m.lock().unwrap();
+
+        let avgs1 = &metrics.tps_avg1;
+        let avgs2 = &metrics.tps_avg2;
+
+        match avgs1.back() {
+            Some(avg) => {
+                print!("| {:.2} tps (1 min)", style(avg).with(Color::Green));
+            }
+            None => (),
+        }
+
+        cursor
+            .goto(
+                TABLE_CONTENT_LEFT + 2 * TABLE_COLUMN_WIDTH,
+                TABLE_TPS_TOP + i as u16,
+            )
+            .unwrap();
+
+        match avgs2.back() {
+            Some(avg) => {
+                print!("| {:.2} tps (10 mins)", style(avg).with(Color::Green));
+            }
+            None => (),
+        }
+    });
+
     stdout().flush().unwrap();
 
-    reset_cursor();
+    reset_cursor(y);
 }
 
-pub fn print_tps2(metrics: &Vec<Arc<Mutex<Metrics>>>) {
+fn reset_cursor(y: u16) {
     let cursor = cursor();
-
-    for i in 0..metrics.len() {
-        cursor.goto(42, 3 + i as u16).unwrap();
-        print!(
-            "| {:.2} tps (10min)",
-            style(metrics[i].lock().unwrap().tps_avg2.back().unwrap()).with(Color::Green)
-        );
-    }
-    stdout().flush().unwrap();
-
-    reset_cursor();
-}
-
-// TODO: make this dynamic
-fn reset_cursor() {
-    let cursor = cursor();
-    cursor.goto(0, CURSOR_RESET_Y).unwrap();
+    cursor.goto(0, y).unwrap();
 }
 
 /*

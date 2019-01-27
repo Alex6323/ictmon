@@ -1,10 +1,17 @@
-# Ict Network Monitor (ictmon)
+# Ict Node Monitor (Ictmon)
 
 ## About
 
-*ictmon* is a small tool to monitor the activity of an Ict node running the [iota-ixi-zeromq](https://gitlab.com/Stefano_Core/iota-ixi-zeromq) extension module introduced by community member Stefano. The Ict node software itself is developed by the IOTA foundation and open-source. Its ongoing development can be followed here: [Ict](https://github.com/iotaledger/ict).
+*Ictmon* is a small tool to monitor the activity of an Ict node running the [Ictmon.ixi](https://github.com/Alex6323/Ictmon.ixi) extension module, that was specifically designed to be able to serve interesting data to *Ictmon*. The open-source Ict node software itself is developed by the IOTA foundation. Its ongoing development can be followed here: [Ict](https://github.com/iotaledger/ict).
 
-For now *ictmon* simply calculates the current tps (transactions per second) running through the Ict node it listens to. I hope many more features like various types of transaction filters, multi-node support and other interesting metrics will be added in the near future.
+## Features
+* inbound TPS (1 minute moving average)
+* inbound TPS (10 minutes moving average)
+* TPS graph
+* ZeroMQ API (with `--api` argument)
+* Muliple nodes monitoring (with `--node-list` argument)
+
+For now *Ictmon* simply calculates the current inbound tps (transactions per second) of the Ict node it listens to. I hope many more features like various types of transaction filters, multi-node support and other interesting metrics will be added in the near future.
 
 ## Running the precompiled binary
 
@@ -61,8 +68,19 @@ $ sudo chmod +x ./ictmon
     $ ./ictmon 192.168.1.9 5560
     ```
 
-## Final Words
+## CLI
 
-If you have any ideas or suggestions about features you'ld like to see in *ictmon*, please don't hesitate to contact me on the IOTA Discord server (/alex/#6323). 
+## WIP 
+
+* CPU load + Mem usage of an Ict node
+* Outbound transactions monitoring
+* Interop with Report.ixi to display neighbor stats
+* Webinterface
+* Transaction visualizer
+* Transaction arrival latency across multiple nodes
+
+## Closing Words
+
+If you have any ideas or suggestions about features you'ld like to see in *Ictmon*, please don't hesitate to contact me on the IOTA Discord server (/alex/#6323). 
 
 Have fun!
