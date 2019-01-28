@@ -1,6 +1,8 @@
 // App constants
-pub const APP_VERSION: &str = "v0.2.0-alpha";
+pub const APP_VERSION: &str = "v0.3.0";
 pub const APP_NAME: &str = "ictmon";
+pub const APP_ENV_VAR: &str = "ICTMON_LOG";
+pub const DEBUG_LEVEL: &str = "info";
 
 // Intervals
 pub const INITIAL_SLEEP_MS: u64 = 1000;

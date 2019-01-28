@@ -3,6 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use stream_cancel::{StreamExt, Tripwire};
 use tokio::{prelude::*, runtime::Runtime, timer::Interval};
 
 use log::*;
@@ -16,7 +17,7 @@ use crate::IctNode;
 use zmq::Context;
 
 ///
-pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
+pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments, tripwire: Tripwire) {
     let mut subscribers = vec![];
 
     args.nodes.iter().for_each(|node| {
@@ -44,7 +45,8 @@ pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
     });
 
     let mut msg = zmq::Message::new();
-    let sub_poller_task = Interval::new_interval(Duration::from_millis(SUB_POLLER_INTERVAL_MS))
+    let poller_task = Interval::new_interval(Duration::from_millis(SUB_POLLER_INTERVAL_MS))
+        .take_until(tripwire)
         .for_each(move |_| {
             let mut poll_items = vec![];
             subscribers.iter().for_each(|(subscriber, _)| {
@@ -70,14 +72,16 @@ pub fn spawn_poller_task(runtime: &mut Runtime, args: &Arguments) {
         })
         .map_err(|e| panic!("Error in poller task: {:?}", e));
 
-    runtime.spawn(sub_poller_task);
+    runtime.spawn(poller_task);
 }
 
-pub fn spawn_tps_tasks(runtime: &mut Runtime, args: &Arguments) {
-    args.nodes.iter().for_each(|n| spawn_tps_task(runtime, n));
+pub fn spawn_tps_tasks(runtime: &mut Runtime, args: &Arguments, tripwire: Tripwire) {
+    args.nodes
+        .iter()
+        .for_each(|n| spawn_tps_task(runtime, n, tripwire.clone()));
 }
 
-pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
+pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode, tripwire: Tripwire) {
     let avg_interval1 = Duration::from_secs(MOVING_AVG_INTERVAL1_SEC);
     let avg_interval2 = Duration::from_secs(MOVING_AVG_INTERVAL2_SEC);
 
@@ -88,6 +92,7 @@ pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
     let metrics = node.metrics.clone();
 
     let tps_task = Interval::new_interval(Duration::from_millis(TPS_UPDATE_INTERVAL_MS))
+        .take_until(tripwire)
         .for_each(move |instant| {
             let timeframe1_start = instant - avg_interval1;
             let timeframe2_start = instant - avg_interval2;
@@ -140,13 +145,14 @@ pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode) {
     runtime.spawn(tps_task);
 }
 
-pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
+pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments, tripwire: Tripwire) {
     let mut metrics = vec![];
     args.nodes
         .iter()
         .for_each(|node| metrics.push(node.metrics.clone()));
 
     let stdout_task = Interval::new_interval(Duration::from_millis(STDOUT_UPDATE_INTERVAL_MS))
+        .take_until(tripwire)
         .for_each(move |_| {
             display::print_tps(&metrics);
             Ok(())
@@ -156,7 +162,7 @@ pub fn spawn_stdout_task(runtime: &mut Runtime, args: &Arguments) {
     runtime.spawn(stdout_task);
 }
 
-pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
+pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments, tripwire: Tripwire) {
     let responder_context = Context::new();
     let responder = responder_context
         .socket(zmq::REP)
@@ -171,6 +177,7 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
 
     let mut msg = zmq::Message::new();
     let rep_poller_task = Interval::new_interval(Duration::from_millis(100))
+        .take_until(tripwire)
         .for_each(move |_| {
             let mut poll_items = [responder.as_poll_item(zmq::POLLIN)];
 

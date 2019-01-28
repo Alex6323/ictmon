@@ -21,7 +21,7 @@ pub fn print_welcome() {
     println!(
         "{}\n",
         style(format!(
-            "Welcome to {} (Ict Node Monitor) {}. Connecting to node(s)...",
+            "Welcome to {} (Ict Node Monitor) {}.",
             APP_NAME, APP_VERSION
         ))
         .with(Color::Blue)

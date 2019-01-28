@@ -2,10 +2,11 @@
 //#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 #![deny(warnings)]
 
-use futures::Future;
+use futures::{Future, Stream};
+use stream_cancel::Tripwire;
 use tokio::runtime::Runtime;
 
-use std::{error::Error, thread, time::Duration};
+use std::{env, error::Error, thread, time::Duration};
 
 use clap::load_yaml;
 use clap::{App, ArgMatches};
@@ -58,9 +59,8 @@ impl Arguments {
 }
 
 fn main() -> Result<(), Box<Error>> {
-    pretty_env_logger::init();
-
-    info!("Heating up...");
+    env::set_var(APP_ENV_VAR, DEBUG_LEVEL);
+    pretty_env_logger::init_custom_env(APP_ENV_VAR);
 
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
@@ -68,30 +68,42 @@ fn main() -> Result<(), Box<Error>> {
 
     // TODO: create a new screen, that when app is exited closes as well
     if args.run_stdout_task == true {
-        info!("Starting stdout task...");
         display::print_welcome();
         display::print_table(&args.nodes);
     }
 
     let mut runtime = Runtime::new().unwrap();
+    let (trigger, tripwire) = Tripwire::new();
+    let shutdown_signal = tokio_signal::ctrl_c()
+        .flatten_stream()
+        .take(1)
+        .for_each(|_| Ok(()));
 
-    info!("Connecting to nodes...");
-    spawn_poller_task(&mut runtime, &args);
+    debug!("Starting poller task.");
+    spawn_poller_task(&mut runtime, &args, tripwire.clone());
+
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
-    info!("Starting tps tasks...");
-    spawn_tps_tasks(&mut runtime, &args);
+    debug!("Starting tps tasks.");
+    spawn_tps_tasks(&mut runtime, &args, tripwire.clone());
 
     if args.run_stdout_task == true {
-        spawn_stdout_task(&mut runtime, &args);
+        debug!("Starting stdout task.");
+        spawn_stdout_task(&mut runtime, &args, tripwire.clone());
     }
 
     if args.run_responder_task == true {
-        info!("Starting responder task");
-        spawn_responder_task(&mut runtime, &args);
+        debug!("Starting responder task.");
+        spawn_responder_task(&mut runtime, &args, tripwire.clone());
     }
 
+    tokio::runtime::current_thread::block_on_all(shutdown_signal).unwrap();
+    drop(trigger);
+
     runtime.shutdown_on_idle().wait().unwrap();
+    info!("Shutting down...");
+
+    thread::sleep(Duration::from_millis(1000));
 
     Ok(())
 }
