@@ -177,28 +177,32 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
             zmq::poll(&mut poll_items, 10).unwrap();
 
             if poll_items[0].is_readable() && responder.recv(&mut msg, 0).is_ok() {
-                let msg = std::str::from_utf8(&msg).unwrap();
-                match msg {
+                let msg_str = std::str::from_utf8(&msg).unwrap();
+                match msg_str {
                     TPS_REQUEST => {
-                        info!("Received tps request (1 min).");
+                        info!("Received 'tps' request (1 min).");
                         {
                             let tps = match metrics_move.lock().unwrap().tps_avg1.back() {
                                 Some(&tps) => tps,
                                 None => 0.0,
                             };
 
-                            responder.send(&format!("tps:{:.2}", tps), 0).unwrap();
+                            responder
+                                .send(&format!("tps{}{:.2}", RESPONSE_SEPARATOR, tps), 0)
+                                .unwrap();
                         }
                     }
-                    TPS2_REQUEST => {
-                        info!("Received tps-2 request (10 min).");
+                    TPS10_REQUEST => {
+                        info!("Received 'tps10' request (10 min).");
                         {
                             let tps = match metrics_move.lock().unwrap().tps_avg2.back() {
                                 Some(&tps) => tps,
                                 None => 0.0,
                             };
 
-                            responder.send(&format!("tps2:{:.2}", tps), 0).unwrap();
+                            responder
+                                .send(&format!("tps10{}{:.2}", RESPONSE_SEPARATOR, tps), 0)
+                                .unwrap();
                         }
                     }
 
@@ -224,20 +228,25 @@ pub fn spawn_responder_task(runtime: &mut Runtime, args: &Arguments) {
                             // NOTE: I cannot make the 'rendering' an asynchronous task, until I know
                             // a way to safely share the responder zmq socket
                             let result = match plotter::render_graph(&data1, &data2) {
-                                Ok(_) => "ok",
-                                Err(_) => "err",
+                                Ok(filename) => filename,
+                                Err(_) => String::from(""),
                             };
 
                             // For now we just notify the requester, that we rendered and stored the graph, because
                             // that's enough for what we need right now (local Discord bot). To make it more useful
                             // Ictmon should send the result base64 encoded to the requester.
                             {
-                                responder.send(&format!("graph:{}", result), 0).unwrap();
+                                responder
+                                    .send(&format!("graph{}{}", RESPONSE_SEPARATOR, result), 0)
+                                    .unwrap();
                             }
                         }
                     }
                     _ => {
-                        warn!("Received unknown request.");
+                        warn!("Received unknown request. {}", msg_str);
+                        {
+                            responder.send(&format!("unknown:{}", msg_str), 0).unwrap();
+                        }
                     }
                 }
             }

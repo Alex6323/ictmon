@@ -11,6 +11,7 @@ use clap::load_yaml;
 use clap::{App, ArgMatches};
 
 use log::*;
+use pretty_env_logger;
 
 mod constants;
 mod display;
@@ -57,25 +58,31 @@ impl Arguments {
 }
 
 fn main() -> Result<(), Box<Error>> {
+    pretty_env_logger::init();
+
+    info!("Heating up...");
+
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
     let args = Arguments::from_matches(matches);
 
     // TODO: create a new screen, that when app is exited closes as well
-    display::print_welcome();
-    display::print_table(&args.nodes);
+    if args.run_stdout_task == true {
+        info!("Starting stdout task...");
+        display::print_welcome();
+        display::print_table(&args.nodes);
+    }
 
     let mut runtime = Runtime::new().unwrap();
 
-    info!("Connecting to nodes");
+    info!("Connecting to nodes...");
     spawn_poller_task(&mut runtime, &args);
     thread::sleep(Duration::from_millis(INITIAL_SLEEP_MS));
 
-    info!("Starting tps tasks");
+    info!("Starting tps tasks...");
     spawn_tps_tasks(&mut runtime, &args);
 
     if args.run_stdout_task == true {
-        info!("Starting stdout task");
         spawn_stdout_task(&mut runtime, &args);
     }
 

@@ -1,14 +1,20 @@
-//use futures::Future;
+use std::{
+    path::Path,
+    time::{Instant, SystemTime},
+};
+
+use chrono::{DateTime, Utc};
+
+use log::*;
 use plotlib::line::Style as LineStyle;
 use plotlib::page::Page;
 use plotlib::style::Line;
 use resvg::usvg;
-use std::path::Path;
 
-//type PlotFuture = Box<Future<Item = (), Error = ()>>;
+pub fn render_graph(data1: &[(f64, f64)], data2: &[(f64, f64)]) -> Result<(String), ()> {
+    info!("Starting to plot...");
+    let start = Instant::now();
 
-pub fn render_graph(data1: &[(f64, f64)], data2: &[(f64, f64)]) -> Result<(), ()> /* -> PlotFuture */
-{
     let line1 = plotlib::line::Line::new(&data1).style(LineStyle::new().colour("#DD3355"));
     let line2 = plotlib::line::Line::new(&data2).style(LineStyle::new().colour("#35C788"));
 
@@ -25,16 +31,26 @@ pub fn render_graph(data1: &[(f64, f64)], data2: &[(f64, f64)]) -> Result<(), ()
 
     let tree = match usvg::Tree::from_str(&svg, &opt.usvg) {
         Ok(t) => t,
-        Err(_) => return Err(()), //Box::new(future::err(())),
+        Err(_) => return Err(()),
     };
 
     let image = match backend.render_to_image(&tree, &opt) {
         Some(img) => img,
-        None => return Err(()), //Box::new(future::err(())),
+        None => return Err(()),
     };
 
-    image.save(Path::new("graph.png"));
+    let datetime: DateTime<Utc> = SystemTime::now().into();
+    let filename = format!("{}.png", datetime.format("tps-1h-%Y-%m-%d-%T-%.3f"));
 
-    //Box::new(future::ok(()))
-    Ok(())
+    if image.save(Path::new(&filename)) {
+        let stop = start.elapsed();
+        info!(
+            "Graph rendered in {} milliseconds",
+            stop.as_secs() * 1000 + stop.subsec_millis() as u64
+        );
+
+        Ok(filename)
+    } else {
+        Err(())
+    }
 }

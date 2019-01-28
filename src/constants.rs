@@ -32,8 +32,9 @@ pub const ICT_LIST_FILE: &str = "icts.txt";
 
 // Requests
 pub const TPS_REQUEST: &str = "tps";
-pub const TPS2_REQUEST: &str = "tps2";
+pub const TPS10_REQUEST: &str = "tps10";
 pub const GRAPH_REQUEST: &str = "graph";
+pub const RESPONSE_SEPARATOR: &str = ";";
 
 // Display
 pub const MAX_TABLE_WIDTH: u16 = 80;
