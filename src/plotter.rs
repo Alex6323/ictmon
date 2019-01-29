@@ -46,7 +46,7 @@ pub fn render_graph(data1: &[(f64, f64)], data2: &[(f64, f64)]) -> Result<(Strin
         let stop = start.elapsed();
         info!(
             "Graph rendered in {} milliseconds",
-            stop.as_secs() * 1000 + stop.subsec_millis() as u64
+            stop.as_secs() * 1000 + u64::from(stop.subsec_millis())
         );
 
         Ok(filename)

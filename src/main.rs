@@ -1,6 +1,6 @@
 // NOTE: swap the inclusion of the following two lines before releases
 //#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
-#![deny(warnings)]
+//#![deny(warnings)]
 
 use futures::{Future, Stream};
 use stream_cancel::Tripwire;
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<Error>> {
     let args = Arguments::from_matches(matches);
 
     // TODO: create a new screen, that when app is exited closes as well
-    if args.run_stdout_task == true {
+    if args.run_stdout_task {
         display::print_welcome();
         display::print_table(&args.nodes);
     }
@@ -87,21 +87,21 @@ fn main() -> Result<(), Box<Error>> {
     debug!("Starting tps tasks.");
     spawn_tps_tasks(&mut runtime, &args, tripwire.clone());
 
-    if args.run_stdout_task == true {
+    if args.run_stdout_task {
         debug!("Starting stdout task.");
         spawn_stdout_task(&mut runtime, &args, tripwire.clone());
     }
 
-    if args.run_responder_task == true {
+    if args.run_responder_task {
         debug!("Starting responder task.");
         spawn_responder_task(&mut runtime, &args, tripwire.clone());
     }
 
     tokio::runtime::current_thread::block_on_all(shutdown_signal).unwrap();
-    drop(trigger);
-
-    runtime.shutdown_on_idle().wait().unwrap();
     info!("Shutting down...");
+
+    drop(trigger);
+    runtime.shutdown_on_idle().wait().unwrap();
 
     thread::sleep(Duration::from_millis(1000));
 

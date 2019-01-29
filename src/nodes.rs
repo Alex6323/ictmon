@@ -28,7 +28,7 @@ pub fn create_nodes_from_file(file: &str) -> Vec<IctNode> {
         .lines()
         .filter_map(|line| line.ok())
         .for_each(|line| {
-            let parts = line.split(":").collect::<Vec<&str>>();
+            let parts = line.split(':').collect::<Vec<&str>>();
             nodes.push(IctNode {
                 name: parts[0].into(),
                 address: parts[1].into(),

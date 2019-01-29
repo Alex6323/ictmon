@@ -11,9 +11,8 @@ lazy_static = "1"
 clap = { version = "2.32.0", features = ["yaml"] }
 futures = "0.1.25"
 tokio-signal = "0.2.7"
-crossterm = "0.5.4"
+crossterm = "0.5.5"
 log = "0.4.6"
-num-complex = "0.2.1"
 resvg = { version = "0.5.0", features = ["cairo-backend"] }
 plotlib = { git = "https://github.com/superfunc/plotlib.git", branch = "rust2018" }
 pretty_env_logger = "0.3.0"

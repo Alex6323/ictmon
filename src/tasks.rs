@@ -81,7 +81,7 @@ pub fn spawn_tps_tasks(runtime: &mut Runtime, args: &Arguments, tripwire: Tripwi
         .for_each(|n| spawn_tps_task(runtime, n, tripwire.clone()));
 }
 
-pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode, tripwire: Tripwire) {
+pub fn spawn_tps_task(runtime: &mut Runtime, node: &IctNode, tripwire: Tripwire) {
     let avg_interval1 = Duration::from_secs(MOVING_AVG_INTERVAL1_SEC);
     let avg_interval2 = Duration::from_secs(MOVING_AVG_INTERVAL2_SEC);
 
@@ -99,14 +99,14 @@ pub fn spawn_tps_task<'a>(runtime: &mut Runtime, node: &IctNode, tripwire: Tripw
             {
                 let mut events = events.lock().unwrap();
 
-                while events.timestamps1.len() > 0
-                    && events.timestamps1.front().unwrap() < &timeframe1_start
+                while !events.timestamps1.is_empty()
+                    && *events.timestamps1.front().unwrap() < timeframe1_start
                 {
                     events.timestamps1.pop_front();
                 }
 
-                while events.timestamps2.len() > 0
-                    && events.timestamps2.front().unwrap() < &timeframe2_start
+                while !events.timestamps2.is_empty()
+                    && *events.timestamps2.front().unwrap() < timeframe2_start
                 {
                     events.timestamps2.pop_front();
                 }

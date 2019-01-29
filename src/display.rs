@@ -37,7 +37,7 @@ pub fn print_info(info: String) {
 }
 */
 
-pub fn print_table(nodes: &Vec<IctNode>) {
+pub fn print_table(nodes: &[IctNode]) {
     let (width, _) = terminal().terminal_size();
     let width = std::cmp::min(MAX_TABLE_WIDTH, width);
     let cursor = cursor();
@@ -52,17 +52,17 @@ pub fn print_table(nodes: &Vec<IctNode>) {
     }
     println!("+{}+", "-".repeat(width as usize - 2));
 
-    for i in 0..nodes.len() {
+    for (i, node) in nodes.iter().enumerate() {
         cursor
             .goto(TABLE_CONTENT_LEFT, TABLE_TPS_TOP + i as u16)
             .unwrap();
-        print!("{}", style(&nodes[i].name).with(Color::Yellow));
+        print!("{}", style(&node.name).with(Color::Yellow));
     }
 
     reset_cursor(nodes.len() as u16 + TABLE_TPS_TOP + 1);
 }
 
-pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
+pub fn print_tps(metrics: &[Arc<Mutex<Metrics>>]) {
     let cursor = cursor();
     let (_, y) = cursor.pos();
 
@@ -79,11 +79,8 @@ pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
         let avgs1 = &metrics.tps_avg1;
         let avgs2 = &metrics.tps_avg2;
 
-        match avgs1.back() {
-            Some(avg) => {
-                print!("| {:.2} tps (1 min)", style(avg).with(Color::Green));
-            }
-            None => (),
+        if let Some(avg) = avgs1.back() {
+            print!("| {:.2} tps (1 min)", style(avg).with(Color::Green));
         }
 
         cursor
@@ -93,11 +90,8 @@ pub fn print_tps(metrics: &Vec<Arc<Mutex<Metrics>>>) {
             )
             .unwrap();
 
-        match avgs2.back() {
-            Some(avg) => {
-                print!("| {:.2} tps (10 mins)", style(avg).with(Color::Green));
-            }
-            None => (),
+        if let Some(avg) = avgs2.back() {
+            print!("| {:.2} tps (10 mins)", style(avg).with(Color::Green));
         }
     });
 
